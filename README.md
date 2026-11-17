@@ -5,10 +5,12 @@ users connect an IMAP mailbox and a CalDAV calendar and work with them from MCP
 clients such as ChatGPT, Claude, and Gemini.
 
 The current implementation provides a Streamable HTTP endpoint at `/mcp` with
-four tools: `ping`, `list_accounts`, `search_messages`, and `get_message`.
+six tools: `ping`, `list_accounts`, `search_messages`, `get_message`, `list_events`,
+and `create_event`.
 `ping` returns `pong`; `list_accounts` lists the current user's connected
 mailboxes and calendars. Both accept an empty object. The mail tools search and
-read messages in a selected account.
+read messages in a selected account. The calendar tools list events over a time
+range and create events without attendees.
 The endpoint requires an encrypted JWE access token issued by this server's
 `TokenManager`. Each token contains a user ID, an Aurinko `userSession`, a client ID, the resource URL,
 and an expiration time. Tokens expire after one hour and are verified without
@@ -334,6 +336,47 @@ validated account. Application credentials are not sent with mail requests.
 Aurinko failures return `isError: true` and `Failed to load messages from Aurinko`.
 Logs record the failure type and stack location without exception messages,
 user sessions, subjects, or message bodies.
+
+## List and create calendar events
+
+Both calendar tools use the verified user's session and validate ownership and
+activity of `accountId` before contacting the calendar API. Omit `calendarId`
+to use the primary calendar.
+
+| Tool | Arguments | Result |
+| --- | --- | --- |
+| `list_events` | Required integer `accountId`, strings `timeMin` and `timeMax`; optional string `calendarId` and integer `limit` (1–50, default 20) | Text containing a JSON array of events |
+| `create_event` | Required integer `accountId`, nonblank string `subject`, strings `start` and `end`; optional strings `calendarId`, `description`, and `location` | Text containing JSON `{"id":"..."}` |
+
+Times must be ISO-8601 date-times with an explicit offset, such as
+`2026-11-17T09:00:00+02:00` or `2026-11-17T07:00:00Z`. For listing, `timeMax`
+must be later than `timeMin`, and the range cannot exceed 62 days. For creation,
+`end` must be later than `start`.
+
+```json
+{"jsonrpc":"2.0","id":6,"method":"tools/call","params":{"name":"list_events","arguments":{"accountId":42,"timeMin":"2026-11-17T09:00:00+02:00","timeMax":"2026-11-18T09:00:00+02:00","limit":20}}}
+```
+
+```json
+{"jsonrpc":"2.0","id":7,"method":"tools/call","params":{"name":"create_event","arguments":{"accountId":42,"subject":"Project review","start":"2026-11-17T09:00:00+02:00","end":"2026-11-17T10:00:00+02:00","description":"Review next steps","location":"Office"}}}
+```
+
+Event results contain `id`, `calendarId`, `subject`, `description`, `location`,
+`start`, `end`, `allDay`, `organizer`, and `htmlLink`. Timed events return ISO-8601
+date-times; all-day events return dates without times. Listing stops when the
+requested limit is reached or an empty page is received. No further page is
+requested once the limit is reached.
+
+Creation sends no attendees and does not send invitations to other people.
+The five read tools advertise `readOnlyHint: true`. `create_event` advertises
+`readOnlyHint: false` and `destructiveHint: false`.
+
+Invalid arguments return a tool error explaining the parameter or time range.
+An inaccessible account returns `Account not found`; Aurinko failures return
+`Failed to load events from Aurinko` or `Failed to create event in Aurinko`.
+All tools log HTTP status codes when available, exception types, and stack
+locations. Request URLs, response bodies, sessions, and event subjects,
+descriptions, and locations are excluded from these logs.
 
 ## Project layout
 

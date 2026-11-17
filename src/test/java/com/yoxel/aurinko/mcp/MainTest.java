@@ -78,7 +78,17 @@ public class MainTest {
             assertThat(initialized.capabilities().tools()).isNotNull();
 
             var tools = client.listTools().tools();
-            assertThat(tools).extracting(McpSchema.Tool::name).containsExactlyInAnyOrder("ping", "list_accounts", "search_messages", "get_message");
+            assertThat(tools).extracting(McpSchema.Tool::name).containsExactlyInAnyOrder(
+                    "ping", "list_accounts", "search_messages", "get_message", "list_events", "create_event");
+            for (var tool : tools) {
+                assertThat(tool.annotations()).isNotNull();
+                if ("create_event".equals(tool.name())) {
+                    assertThat(tool.annotations().readOnlyHint()).isFalse();
+                    assertThat(tool.annotations().destructiveHint()).isFalse();
+                } else {
+                    assertThat(tool.annotations().readOnlyHint()).isTrue();
+                }
+            }
 
             var result = client.callTool(McpSchema.CallToolRequest.builder("ping")
                     .arguments(Map.of())

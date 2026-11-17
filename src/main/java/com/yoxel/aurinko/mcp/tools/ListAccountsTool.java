@@ -25,6 +25,7 @@ public class ListAccountsTool implements McpTool {
                 .tool(McpSchema.Tool.builder("list_accounts", Map.of(
                                 "type", "object", "properties", Map.of(), "additionalProperties", false))
                         .description("List mailboxes and calendars connected by the current user")
+                        .annotations(McpSchema.ToolAnnotations.builder().readOnlyHint(true).build())
                         .build())
                 .callHandler((exchange, request) -> {
                     var principal = McpPrincipalHelper.fromExchange(exchange);
@@ -32,7 +33,7 @@ public class ListAccountsTool implements McpTool {
                         var accounts = accountService.listAccounts(principal.getUserId());
                         return ToolResultHelper.json(jsonMapper, accounts);
                     } catch (AurinkoException | IOException e) {
-                        log.error("Failed to load accounts from Aurinko", e);
+                        ToolErrorLogger.log(log, "Failed to load accounts from Aurinko", e);
                         return ToolResultHelper.error("Failed to load accounts from Aurinko");
                     }
                 })

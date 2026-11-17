@@ -1,6 +1,9 @@
 package com.yoxel.aurinko.mcp;
 
 import com.yoxel.aurinko.AurinkoService;
+import com.yoxel.aurinko.mcp.aurinko.AurinkoCalendarServiceImpl;
+import com.yoxel.aurinko.mcp.tools.ListEventsTool;
+import com.yoxel.aurinko.mcp.tools.CreateEventTool;
 import com.yoxel.aurinko.mcp.aurinko.AccountAccessValidator;
 import com.yoxel.aurinko.mcp.aurinko.AurinkoAccountService;
 import com.yoxel.aurinko.mcp.aurinko.AurinkoAccountServiceImpl;
@@ -102,10 +105,14 @@ public class Main {
                 .build();
         String version = Main.class.getPackage().getImplementationVersion();
         var accessValidator = new AccountAccessValidator(accountService);
-        var emailService = new AurinkoEmailServiceImpl(new AurinkoClientFactoryImpl(aurinkoConfig));
+        var clientFactory = new AurinkoClientFactoryImpl(aurinkoConfig);
+        var emailService = new AurinkoEmailServiceImpl(clientFactory);
+        var calendarService = new AurinkoCalendarServiceImpl(clientFactory);
         List<McpTool> tools = List.of(new PingTool(), new ListAccountsTool(accountService, jsonMapper),
                 new SearchMessagesTool(accessValidator, emailService, jsonMapper),
-                new GetMessageTool(accessValidator, emailService, jsonMapper));
+                new GetMessageTool(accessValidator, emailService, jsonMapper),
+                new ListEventsTool(accessValidator, calendarService, jsonMapper),
+                new CreateEventTool(accessValidator, calendarService, jsonMapper));
         var mcpServerBuilder = McpServer.sync(transport)
                 .serverInfo("aurinko-mcp", version != null ? version : "development")
                 .capabilities(McpSchema.ServerCapabilities.builder().tools(false).build());

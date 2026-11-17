@@ -15,6 +15,7 @@ public class PingTool implements McpTool {
                                 "properties", Map.of(),
                                 "additionalProperties", false))
                         .description("Check that the Aurinko MCP server is running")
+                        .annotations(McpSchema.ToolAnnotations.builder().readOnlyHint(true).build())
                         .build())
                 .callHandler((exchange, request) -> McpSchema.CallToolResult.builder()
                         .addTextContent("pong")
