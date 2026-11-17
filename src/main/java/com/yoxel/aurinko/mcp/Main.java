@@ -1,10 +1,13 @@
 package com.yoxel.aurinko.mcp;
 
 import com.yoxel.aurinko.AurinkoService;
+import com.yoxel.aurinko.mcp.aurinko.AccountAccessValidator;
 import com.yoxel.aurinko.mcp.aurinko.AurinkoAccountService;
 import com.yoxel.aurinko.mcp.aurinko.AurinkoAccountServiceImpl;
 import com.yoxel.aurinko.mcp.aurinko.AurinkoAuthServiceImpl;
 import com.yoxel.aurinko.mcp.aurinko.AurinkoAuthorizeUrlBuilderImpl;
+import com.yoxel.aurinko.mcp.aurinko.AurinkoClientFactoryImpl;
+import com.yoxel.aurinko.mcp.aurinko.AurinkoEmailServiceImpl;
 import com.yoxel.aurinko.mcp.auth.BearerAuthFilter;
 import com.yoxel.aurinko.mcp.auth.McpPrincipalHelper;
 import com.yoxel.aurinko.mcp.auth.ProtectedResourceMetadataServlet;
@@ -28,9 +31,11 @@ import com.yoxel.aurinko.mcp.oauth.RegistrationServlet;
 import com.yoxel.aurinko.mcp.oauth.TokenManagerJweImpl;
 import com.yoxel.aurinko.mcp.oauth.TokenServlet;
 import com.yoxel.aurinko.mcp.oauth.UsedCodesMemoryImpl;
+import com.yoxel.aurinko.mcp.tools.GetMessageTool;
 import com.yoxel.aurinko.mcp.tools.ListAccountsTool;
 import com.yoxel.aurinko.mcp.tools.McpTool;
 import com.yoxel.aurinko.mcp.tools.PingTool;
+import com.yoxel.aurinko.mcp.tools.SearchMessagesTool;
 import io.modelcontextprotocol.json.McpJsonDefaults;
 import io.modelcontextprotocol.server.McpServer;
 import io.modelcontextprotocol.server.transport.HttpServletStreamableServerTransportProvider;
@@ -96,7 +101,11 @@ public class Main {
                 .contextExtractor(McpPrincipalHelper::toContext)
                 .build();
         String version = Main.class.getPackage().getImplementationVersion();
-        List<McpTool> tools = List.of(new PingTool(), new ListAccountsTool(accountService, jsonMapper));
+        var accessValidator = new AccountAccessValidator(accountService);
+        var emailService = new AurinkoEmailServiceImpl(new AurinkoClientFactoryImpl(aurinkoConfig));
+        List<McpTool> tools = List.of(new PingTool(), new ListAccountsTool(accountService, jsonMapper),
+                new SearchMessagesTool(accessValidator, emailService, jsonMapper),
+                new GetMessageTool(accessValidator, emailService, jsonMapper));
         var mcpServerBuilder = McpServer.sync(transport)
                 .serverInfo("aurinko-mcp", version != null ? version : "development")
                 .capabilities(McpSchema.ServerCapabilities.builder().tools(false).build());

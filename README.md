@@ -5,8 +5,10 @@ users connect an IMAP mailbox and a CalDAV calendar and work with them from MCP
 clients such as ChatGPT, Claude, and Gemini.
 
 The current implementation provides a Streamable HTTP endpoint at `/mcp` with
-two tools: `ping`, which returns `pong`, and `list_accounts`, which lists the
-current user's connected mailboxes and calendars. Both accept an empty object.
+four tools: `ping`, `list_accounts`, `search_messages`, and `get_message`.
+`ping` returns `pong`; `list_accounts` lists the current user's connected
+mailboxes and calendars. Both accept an empty object. The mail tools search and
+read messages in a selected account.
 The endpoint requires an encrypted JWE access token issued by this server's
 `TokenManager`. Each token contains a user ID, an Aurinko `userSession`, a client ID, the resource URL,
 and an expiration time. Tokens expire after one hour and are verified without
@@ -290,9 +292,48 @@ The result is text containing a JSON array, for example:
 
 The user ID comes from the verified token through MCP transport context and
 cannot be supplied as a tool argument. Accounts are fetched with application
-authentication through `aurinko-java`, including all pages. An empty list returns
+authentication through `aurinko-java`, up to 200 accounts. Loading stops at the
+limit or an empty page. An empty list returns
 `[]`. Aurinko failures return `isError: true` with
 `Failed to load accounts from Aurinko`; diagnostic details stay in server logs.
+
+## Search and read email
+
+Choose an active `accountId` from `list_accounts`. Both mail tools verify that
+the account belongs to the authenticated user and is active before querying
+messages. An unavailable or inaccessible account returns `isError: true` with
+`Account not found`.
+
+| Tool | Arguments | Result |
+| --- | --- | --- |
+| `search_messages` | Required integer `accountId`; optional string `query`; optional integer `limit` from 1 to 50, default 20 | Text containing a JSON array of message summaries |
+| `get_message` | Required integer `accountId` and string `messageId` | Text containing a JSON message with body and CC recipients |
+
+Examples of MCP tool call payloads:
+
+```json
+{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"search_messages","arguments":{"accountId":42,"query":"from:someone@example.com after:01/01/2026","limit":20}}}
+```
+
+```json
+{"jsonrpc":"2.0","id":5,"method":"tools/call","params":{"name":"get_message","arguments":{"accountId":42,"messageId":"message-1"}}}
+```
+
+Search reads only the first Aurinko page and returns at most `limit` records;
+it does not follow `nextPageToken`. An omitted or blank query sends no `q`
+parameter. Summaries contain `id`, `threadId`, `subject`, `from`, `to`,
+`receivedAt`, and `hasAttachments`. Addresses are formatted as `Name <address>`
+or a plain address; dates use ISO-8601 strings.
+
+Reading a message also returns `cc`, `body`, and `bodyTruncated`. Bodies longer
+than 50,000 characters are cut to that length with `bodyTruncated: true`.
+
+Each mail request creates and closes its own Aurinko client. It sends
+`X-Aurinko-Session` from the verified token and `X-Aurinko-Account-Id` for the
+validated account. Application credentials are not sent with mail requests.
+Aurinko failures return `isError: true` and `Failed to load messages from Aurinko`.
+Logs record the failure type and stack location without exception messages,
+user sessions, subjects, or message bodies.
 
 ## Project layout
 

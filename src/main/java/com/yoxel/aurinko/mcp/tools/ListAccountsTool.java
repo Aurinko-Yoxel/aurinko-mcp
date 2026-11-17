@@ -30,16 +30,10 @@ public class ListAccountsTool implements McpTool {
                     var principal = McpPrincipalHelper.fromExchange(exchange);
                     try {
                         var accounts = accountService.listAccounts(principal.getUserId());
-                        return McpSchema.CallToolResult.builder()
-                                .addTextContent(jsonMapper.writeValueAsString(accounts))
-                                .isError(false)
-                                .build();
+                        return ToolResultHelper.json(jsonMapper, accounts);
                     } catch (AurinkoException | IOException e) {
                         log.error("Failed to load accounts from Aurinko", e);
-                        return McpSchema.CallToolResult.builder()
-                                .addTextContent("Failed to load accounts from Aurinko")
-                                .isError(true)
-                                .build();
+                        return ToolResultHelper.error("Failed to load accounts from Aurinko");
                     }
                 })
                 .build();

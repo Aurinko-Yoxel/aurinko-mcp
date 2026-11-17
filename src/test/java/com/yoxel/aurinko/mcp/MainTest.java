@@ -78,7 +78,7 @@ public class MainTest {
             assertThat(initialized.capabilities().tools()).isNotNull();
 
             var tools = client.listTools().tools();
-            assertThat(tools).extracting(McpSchema.Tool::name).containsExactly("ping", "list_accounts");
+            assertThat(tools).extracting(McpSchema.Tool::name).containsExactlyInAnyOrder("ping", "list_accounts", "search_messages", "get_message");
 
             var result = client.callTool(McpSchema.CallToolRequest.builder("ping")
                     .arguments(Map.of())
