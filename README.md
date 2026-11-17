@@ -5,8 +5,8 @@ users connect an IMAP mailbox and a CalDAV calendar and work with them from MCP
 clients such as ChatGPT, Claude, and Gemini.
 
 The current implementation provides a Streamable HTTP endpoint at `/mcp` with
-six tools: `ping`, `list_accounts`, `search_messages`, `get_message`, `list_events`,
-and `create_event`.
+seven tools: `ping`, `list_accounts`, `search_messages`, `get_message`, `list_events`,
+`create_event`, and `connect_account`.
 `ping` returns `pong`; `list_accounts` lists the current user's connected
 mailboxes and calendars. Both accept an empty object. The mail tools search and
 read messages in a selected account. The calendar tools list events over a time
@@ -19,7 +19,8 @@ OAuth client registration, authorization code exchange with S256 PKCE, and
 refresh token grants are implemented. Refresh tokens expire after 30 days.
 Users sign in through Google or Microsoft via Aurinko. Their Aurinko `userId`
 becomes the user ID in this server's authorization codes and tokens.
-Mailbox/calendar connections and other tools are not implemented yet.
+IMAP mailboxes and CalDAV calendars can be connected through a browser link
+returned by `connect_account`.
 There is no token revocation or CORS support.
 
 ## Requirements
@@ -53,9 +54,11 @@ Configuration is read from environment variables:
 | `TOKEN_KEY` | Required | Base64-encoded 32-byte AES encryption key; startup fails if absent or invalid |
 | `AURINKO_URL` | `https://api.aurinko.io` | Aurinko API base URL |
 | `AURINKO_CLIENT_ID` | Required | Aurinko application's client ID |
-| `AURINKO_CLIENT_SECRET` | Required | Aurinko application's secret; omitted from configuration `toString` and never logged |
+| `AURINKO_CLIENT_SECRET` | Required | Aurinko application's secret in base64url format; omitted from configuration `toString` and never logged |
 | `AURINKO_LOGIN_SERVICE_TYPES` | `Google,Office365` | Comma-separated login providers shown on the page |
 | `AURINKO_LOGIN_SCOPES` | Unset | Optional scopes passed to Aurinko's `authorizeUser` endpoint |
+| `AURINKO_IMAP_SCOPES` | `Mail.Read` | Scopes requested when connecting an IMAP mailbox |
+| `AURINKO_CALDAV_SCOPES` | `Calendar.ReadWrite` | Scopes requested when connecting a CalDAV calendar |
 
 `PUBLIC_URL` may end in `/`; the trailing slash is removed before constructing
 the MCP resource URL. Configure the actual external URL when deploying behind
@@ -79,7 +82,8 @@ login requests and closed when the server stops.
 In the Aurinko application settings:
 
 1. Enable the `EndUserSessions` capability.
-2. Add `<PUBLIC_URL>/oauth/aurinko/callback` to the allowed return URLs.
+2. Add both `<PUBLIC_URL>/oauth/aurinko/callback` and
+   `<PUBLIC_URL>/accounts/callback` to the allowed return URLs.
 3. Configure Google and Microsoft login, including the provider OAuth
    applications and credentials required by Aurinko.
 
@@ -213,8 +217,8 @@ Two limitations apply:
 
 Client IDs are encrypted JWE strings without expiration. Authorization codes
 are encrypted JWE strings valid for 60 seconds and contain `userId`, `clientId`,
-`userSession`, `redirectUri`, `codeChallenge`, and `resource`. All five kinds of value use the
-same `TOKEN_KEY`; encrypted type markers (`client`, `code`, `access`, `refresh`, and `login`)
+`userSession`, `redirectUri`, `codeChallenge`, and `resource`. All six kinds of value use the
+same `TOKEN_KEY`; encrypted type markers (`client`, `code`, `access`, `refresh`, `login`, and `connect`)
 prevent using one kind as another. Nimbus is used only in `JweHelper`, which
 also checks expiration using an injected `Clock`.
 
@@ -224,8 +228,8 @@ this server's code. The `userSession` is carried inside the encrypted authorizat
 code and access/refresh tokens, and preserved when refreshing. Tokens without a
 nonblank session are rejected. It is excluded from diagnostic `toString` output
 and is never returned as a separate client-visible field. Account access tokens
-from the exchange are not retained. Mailboxes and calendars are not connected by
-this flow.
+from the exchange are not retained. Additional mailboxes and calendars are
+connected through the separate `connect_account` flow described below.
 
 ## Try ping
 
@@ -377,6 +381,47 @@ An inaccessible account returns `Account not found`; Aurinko failures return
 All tools log HTTP status codes when available, exception types, and stack
 locations. Request URLs, response bodies, sessions, and event subjects,
 descriptions, and locations are excluded from these logs.
+
+## Connect an IMAP mailbox or CalDAV calendar
+
+Call `connect_account` with required `serviceType` set to `IMAP` or `CalDav`:
+
+```json
+{"jsonrpc":"2.0","id":8,"method":"tools/call","params":{"name":"connect_account","arguments":{"serviceType":"IMAP"}}}
+```
+
+The result is text containing JSON with `url` and `expiresInSeconds: 600`.
+The URL starts with `<PUBLIC_URL>/accounts/connect?state=...`. The tool gets
+the user ID from the verified MCP principal and advertises `readOnlyHint: false`
+and `destructiveHint: false`.
+
+The user opens this link in a browser, sees the already connected email
+addresses on our confirmation page, and clicks **Continue**. Mailbox or calendar
+credentials are entered on the Aurinko page reached by that link.
+
+The connection flow uses:
+
+- `GET /accounts/connect?state=...` to show the English confirmation page and set
+  `aurinko_connect_nonce`, an HttpOnly cookie with `SameSite=Lax`, path
+  `/accounts/callback`, and a 10-minute lifetime. It is Secure for HTTPS.
+- Aurinko `/v1/auth/authorizeUser` with `accountRole=secondary`, the selected
+  service type, requested scopes, user ID, timestamp, and user signature.
+- `GET /accounts/callback` to validate the state and nonce, exchange the code,
+  verify that Aurinko returned the expected user ID, and show the result page.
+  The nonce cookie is deleted by the callback. These browser routes do not
+  require a Bearer token.
+
+Connection state is a JWE of type `connect` valid for 10 minutes, with a random
+32-byte base64url nonce. The user signature is hex-encoded HMAC-SHA256 of
+`userId + timestampSeconds`, using the application's base64url-decoded client
+secret as the key. The timestamp comes from the server clock.
+
+Confirmation pages use `Cache-Control: no-store` and `Referrer-Policy: no-referrer`.
+All displayed email addresses and service types are HTML-escaped. Invalid state
+or nonce receives HTTP 400. Provider cancellation, an exchange error, or a
+different user ID from Aurinko produces the failure page without exposing user
+data in error logs. On success, the page says **Account connected. You can return
+to the chat.** The user can then call `list_accounts` again.
 
 ## Project layout
 

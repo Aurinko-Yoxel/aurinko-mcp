@@ -11,15 +11,25 @@ import java.util.Map;
 @Value
 public class AurinkoConfig {
 
+    private static final String DEFAULT_IMAP_SCOPES = "Mail.Read";
+    private static final String DEFAULT_CALDAV_SCOPES = "Calendar.ReadWrite";
+
     String url;
     String clientId;
     @ToString.Exclude
     String clientSecret;
     List<String> loginServiceTypes;
     String loginScopes;
+    String imapScopes;
+    String caldavScopes;
 
     public AurinkoConfig(String url, String clientId, String clientSecret,
             List<String> loginServiceTypes, String loginScopes) {
+        this(url, clientId, clientSecret, loginServiceTypes, loginScopes, DEFAULT_IMAP_SCOPES, DEFAULT_CALDAV_SCOPES);
+    }
+
+    public AurinkoConfig(String url, String clientId, String clientSecret,
+            List<String> loginServiceTypes, String loginScopes, String imapScopes, String caldavScopes) {
         if (clientId == null || clientId.isBlank()) {
             throw new IllegalArgumentException("AURINKO_CLIENT_ID is required");
         }
@@ -47,6 +57,8 @@ public class AurinkoConfig {
         this.clientSecret = clientSecret;
         this.loginServiceTypes = loginServiceTypes.stream().map(String::trim).distinct().toList();
         this.loginScopes = loginScopes == null || loginScopes.isBlank() ? null : loginScopes.trim();
+        this.imapScopes = imapScopes;
+        this.caldavScopes = caldavScopes;
     }
 
     public static AurinkoConfig fromEnvironment() {
@@ -57,6 +69,8 @@ public class AurinkoConfig {
         return new AurinkoConfig(environment.getOrDefault("AURINKO_URL", "https://api.aurinko.io"),
                 environment.get("AURINKO_CLIENT_ID"), environment.get("AURINKO_CLIENT_SECRET"),
                 Arrays.asList(environment.getOrDefault("AURINKO_LOGIN_SERVICE_TYPES", "Google,Office365").split(",", -1)),
-                environment.get("AURINKO_LOGIN_SCOPES"));
+                environment.get("AURINKO_LOGIN_SCOPES"),
+                environment.getOrDefault("AURINKO_IMAP_SCOPES", DEFAULT_IMAP_SCOPES),
+                environment.getOrDefault("AURINKO_CALDAV_SCOPES", DEFAULT_CALDAV_SCOPES));
     }
 }

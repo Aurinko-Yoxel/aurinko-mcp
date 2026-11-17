@@ -29,6 +29,8 @@ public class AurinkoConfigTest {
         assertThat(config.getUrl()).isEqualTo("https://api.aurinko.io");
         assertThat(config.getLoginServiceTypes()).containsExactly("Google", "Office365");
         assertThat(config.getLoginScopes()).isNull();
+        assertThat(config.getImapScopes()).isEqualTo("Mail.Read");
+        assertThat(config.getCaldavScopes()).isEqualTo("Calendar.ReadWrite");
         assertThat(config.toString()).doesNotContain("private-secret");
     }
 
@@ -36,10 +38,13 @@ public class AurinkoConfigTest {
     void customValuesApplied() {
         var config = AurinkoConfig.fromEnvironment(Map.of("AURINKO_CLIENT_ID", "client-1",
                 "AURINKO_CLIENT_SECRET", "private-secret", "AURINKO_URL", "https://api.example.com/",
-                "AURINKO_LOGIN_SERVICE_TYPES", "Google", "AURINKO_LOGIN_SCOPES", "User.Read Mail.Read"));
+                "AURINKO_LOGIN_SERVICE_TYPES", "Google", "AURINKO_LOGIN_SCOPES", "User.Read Mail.Read",
+                "AURINKO_IMAP_SCOPES", "Mail.Read Mail.Send", "AURINKO_CALDAV_SCOPES", "Calendar.Read"));
 
         assertThat(config.getUrl()).isEqualTo("https://api.example.com");
         assertThat(config.getLoginServiceTypes()).containsExactly("Google");
         assertThat(config.getLoginScopes()).isEqualTo("User.Read Mail.Read");
+        assertThat(config.getImapScopes()).isEqualTo("Mail.Read Mail.Send");
+        assertThat(config.getCaldavScopes()).isEqualTo("Calendar.Read");
     }
 }

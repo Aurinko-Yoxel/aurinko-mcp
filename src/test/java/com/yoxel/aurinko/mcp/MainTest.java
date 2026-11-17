@@ -1,6 +1,7 @@
 package com.yoxel.aurinko.mcp;
 
 import com.yoxel.aurinko.AurinkoService;
+import com.yoxel.aurinko.mcp.accounts.ConnectStateManagerJweImpl;
 import com.yoxel.aurinko.mcp.aurinko.AurinkoAccount;
 import com.yoxel.aurinko.mcp.auth.McpPrincipal;
 import com.yoxel.aurinko.mcp.config.AurinkoConfig;
@@ -79,10 +80,10 @@ public class MainTest {
 
             var tools = client.listTools().tools();
             assertThat(tools).extracting(McpSchema.Tool::name).containsExactlyInAnyOrder(
-                    "ping", "list_accounts", "search_messages", "get_message", "list_events", "create_event");
+                    "ping", "list_accounts", "search_messages", "get_message", "list_events", "create_event", "connect_account");
             for (var tool : tools) {
                 assertThat(tool.annotations()).isNotNull();
-                if ("create_event".equals(tool.name())) {
+                if (List.of("create_event", "connect_account").contains(tool.name())) {
                     assertThat(tool.annotations().readOnlyHint()).isFalse();
                     assertThat(tool.annotations().destructiveHint()).isFalse();
                 } else {
@@ -105,6 +106,23 @@ public class MainTest {
         var response = HttpClient.newHttpClient().send(request, HttpResponse.BodyHandlers.ofString());
 
         assertThat(response.statusCode()).isEqualTo(401);
+    }
+
+    @Test
+    void accountConnectionRoutesAccessibleWithoutBearerToken() throws Exception {
+        var manager = new ConnectStateManagerJweImpl(new JweHelper(config.getTokenKey(), Clock.systemUTC()));
+        String state = manager.createState("token-user", "IMAP");
+        var client = HttpClient.newHttpClient();
+        var start = client.send(HttpRequest.newBuilder(URI.create(baseUrl + "/accounts/connect?state=" + state)).GET().build(),
+                HttpResponse.BodyHandlers.ofString());
+
+        assertThat(start.statusCode()).isEqualTo(200);
+        assertThat(start.body()).contains("Connect a mailbox to Aurinko");
+        String cookie = "aurinko_connect_nonce=" + manager.parseState(state).getNonce();
+        var callback = client.send(HttpRequest.newBuilder(URI.create(baseUrl + "/accounts/callback?state=" + state + "&status=error"))
+                .header("Cookie", cookie).GET().build(), HttpResponse.BodyHandlers.ofString());
+        assertThat(callback.statusCode()).isEqualTo(200);
+        assertThat(callback.body()).contains("Account was not connected. Please try again from the chat.");
     }
 
     @Test

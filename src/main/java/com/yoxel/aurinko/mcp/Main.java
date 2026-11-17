@@ -1,16 +1,19 @@
 package com.yoxel.aurinko.mcp;
 
 import com.yoxel.aurinko.AurinkoService;
-import com.yoxel.aurinko.mcp.aurinko.AurinkoCalendarServiceImpl;
-import com.yoxel.aurinko.mcp.tools.ListEventsTool;
-import com.yoxel.aurinko.mcp.tools.CreateEventTool;
+import com.yoxel.aurinko.mcp.accounts.ConnectCallbackServlet;
+import com.yoxel.aurinko.mcp.accounts.ConnectPageRenderer;
+import com.yoxel.aurinko.mcp.accounts.ConnectStartServlet;
+import com.yoxel.aurinko.mcp.accounts.ConnectStateManagerJweImpl;
 import com.yoxel.aurinko.mcp.aurinko.AccountAccessValidator;
 import com.yoxel.aurinko.mcp.aurinko.AurinkoAccountService;
 import com.yoxel.aurinko.mcp.aurinko.AurinkoAccountServiceImpl;
 import com.yoxel.aurinko.mcp.aurinko.AurinkoAuthServiceImpl;
 import com.yoxel.aurinko.mcp.aurinko.AurinkoAuthorizeUrlBuilderImpl;
+import com.yoxel.aurinko.mcp.aurinko.AurinkoCalendarServiceImpl;
 import com.yoxel.aurinko.mcp.aurinko.AurinkoClientFactoryImpl;
 import com.yoxel.aurinko.mcp.aurinko.AurinkoEmailServiceImpl;
+import com.yoxel.aurinko.mcp.aurinko.UserSignatureHelper;
 import com.yoxel.aurinko.mcp.auth.BearerAuthFilter;
 import com.yoxel.aurinko.mcp.auth.McpPrincipalHelper;
 import com.yoxel.aurinko.mcp.auth.ProtectedResourceMetadataServlet;
@@ -34,8 +37,11 @@ import com.yoxel.aurinko.mcp.oauth.RegistrationServlet;
 import com.yoxel.aurinko.mcp.oauth.TokenManagerJweImpl;
 import com.yoxel.aurinko.mcp.oauth.TokenServlet;
 import com.yoxel.aurinko.mcp.oauth.UsedCodesMemoryImpl;
+import com.yoxel.aurinko.mcp.tools.ConnectAccountTool;
+import com.yoxel.aurinko.mcp.tools.CreateEventTool;
 import com.yoxel.aurinko.mcp.tools.GetMessageTool;
 import com.yoxel.aurinko.mcp.tools.ListAccountsTool;
+import com.yoxel.aurinko.mcp.tools.ListEventsTool;
 import com.yoxel.aurinko.mcp.tools.McpTool;
 import com.yoxel.aurinko.mcp.tools.PingTool;
 import com.yoxel.aurinko.mcp.tools.SearchMessagesTool;
@@ -94,7 +100,10 @@ public class Main {
         var refreshGrantHandler = new RefreshTokenGrantHandler(tokenManager);
         var completer = new AuthorizationCompleterImpl(codeManager);
         var stateManager = new LoginStateManagerJweImpl(jweHelper);
-        var urlBuilder = new AurinkoAuthorizeUrlBuilderImpl(aurinkoConfig);
+        var signatureHelper = new UserSignatureHelper(aurinkoConfig);
+        var urlBuilder = new AurinkoAuthorizeUrlBuilderImpl(aurinkoConfig, config, signatureHelper, clock);
+        var connectStateManager = new ConnectStateManagerJweImpl(jweHelper);
+        var connectRenderer = new ConnectPageRenderer();
         var renderer = new LoginPageRendererImpl();
         var userLogin = new AurinkoUserLogin(stateManager, urlBuilder, renderer, config, aurinkoConfig);
         var jsonMapper = McpJsonDefaults.getMapper();
@@ -112,7 +121,8 @@ public class Main {
                 new SearchMessagesTool(accessValidator, emailService, jsonMapper),
                 new GetMessageTool(accessValidator, emailService, jsonMapper),
                 new ListEventsTool(accessValidator, calendarService, jsonMapper),
-                new CreateEventTool(accessValidator, calendarService, jsonMapper));
+                new CreateEventTool(accessValidator, calendarService, jsonMapper),
+                new ConnectAccountTool(connectStateManager, config, jsonMapper));
         var mcpServerBuilder = McpServer.sync(transport)
                 .serverInfo("aurinko-mcp", version != null ? version : "development")
                 .capabilities(McpSchema.ServerCapabilities.builder().tools(false).build());
@@ -151,6 +161,10 @@ public class Main {
         var authService = new AurinkoAuthServiceImpl(aurinkoService);
         context.addServlet(new ServletHolder(new AurinkoCallbackServlet(stateManager, authService, completer, config)),
                 "/oauth/aurinko/callback");
+        context.addServlet(new ServletHolder(new ConnectStartServlet(connectStateManager, accountService,
+                urlBuilder, connectRenderer, config)), "/accounts/connect");
+        context.addServlet(new ServletHolder(new ConnectCallbackServlet(connectStateManager, authService,
+                connectRenderer, config)), "/accounts/callback");
         server.setHandler(context);
         server.addEventListener(new LifeCycle.Listener() {
             @Override
