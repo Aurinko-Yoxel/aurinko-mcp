@@ -23,7 +23,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 public class AurinkoAuthorizeUrlBuilderTest {
 
     @Test
-    void parametersEncodedWithOptionalScopes() {
+    void parametersEncodedWithConfiguredScopes() {
         var config = new AurinkoConfig("https://api.example.com/", "client + &", "secret",
                 List.of("Google"), "User.Read Mail.Read");
         AurinkoAuthorizeUrlBuilder builder = builder(config);
@@ -39,14 +39,16 @@ public class AurinkoAuthorizeUrlBuilderTest {
                 "state", "state + &= юзер", "scopes", "User.Read Mail.Read"));
     }
 
-    @Test
-    void unsetScopesOmitted() {
-        var config = new AurinkoConfig("https://api.example.com", "client", "secret", List.of("Office365"), null);
+    @ParameterizedTest
+    @ValueSource(strings = {"Google", "Office365"})
+    void defaultScopesIncluded(String serviceType) {
+        var config = new AurinkoConfig("https://api.example.com", "client", "secret", List.of(serviceType), null);
         AurinkoAuthorizeUrlBuilder builder = builder(config);
 
-        URI url = URI.create(builder.build("Office365", "https://mcp.example.com/callback", "state"));
+        URI url = URI.create(builder.build(serviceType, "https://mcp.example.com/callback", "state"));
 
-        assertThat(query(url)).containsEntry("serviceType", "Office365").doesNotContainKey("scopes");
+        assertThat(query(url)).containsEntry("serviceType", serviceType)
+                .containsEntry("scopes", "Mail.Read Calendar.ReadWrite");
     }
 
     @ParameterizedTest

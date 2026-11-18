@@ -11,6 +11,7 @@ import java.util.Map;
 @Value
 public class AurinkoConfig {
 
+    private static final String DEFAULT_LOGIN_SCOPES = "Mail.Read Calendar.ReadWrite";
     private static final String DEFAULT_IMAP_SCOPES = "Mail.Read";
     private static final String DEFAULT_CALDAV_SCOPES = "Calendar.ReadWrite";
 
@@ -59,7 +60,7 @@ public class AurinkoConfig {
         this.clientId = clientId;
         this.clientSecret = clientSecret;
         this.loginServiceTypes = loginServiceTypes.stream().map(String::trim).distinct().toList();
-        this.loginScopes = loginScopes == null || loginScopes.isBlank() ? null : loginScopes.trim();
+        this.loginScopes = loginScopes == null || loginScopes.isBlank() ? DEFAULT_LOGIN_SCOPES : loginScopes.trim();
         this.imapScopes = imapScopes;
         this.caldavScopes = caldavScopes;
     }
@@ -72,7 +73,7 @@ public class AurinkoConfig {
         return new AurinkoConfig(environment.getOrDefault("AURINKO_URL", "https://api.aurinko.io"),
                 environment.get("AURINKO_CLIENT_ID"), environment.get("AURINKO_CLIENT_SECRET"),
                 Arrays.asList(environment.getOrDefault("AURINKO_LOGIN_SERVICE_TYPES", "Google,Office365").split(",", -1)),
-                environment.get("AURINKO_LOGIN_SCOPES"),
+                environment.getOrDefault("AURINKO_LOGIN_SCOPES", DEFAULT_LOGIN_SCOPES),
                 environment.getOrDefault("AURINKO_IMAP_SCOPES", DEFAULT_IMAP_SCOPES),
                 environment.getOrDefault("AURINKO_CALDAV_SCOPES", DEFAULT_CALDAV_SCOPES));
     }

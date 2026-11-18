@@ -4,6 +4,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
+import java.util.List;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -48,10 +49,35 @@ public class AurinkoConfigTest {
 
         assertThat(config.getUrl()).isEqualTo("https://api.aurinko.io");
         assertThat(config.getLoginServiceTypes()).containsExactly("Google", "Office365");
-        assertThat(config.getLoginScopes()).isNull();
+        assertThat(config.getLoginScopes()).isEqualTo("Mail.Read Calendar.ReadWrite");
         assertThat(config.getImapScopes()).isEqualTo("Mail.Read");
         assertThat(config.getCaldavScopes()).isEqualTo("Calendar.ReadWrite");
         assertThat(config.toString()).doesNotContain("private-secret");
+    }
+
+    @Test
+    void nullLoginScopesInFiveParameterConstructorUseDefault() {
+        var config = new AurinkoConfig("https://api.example.com", "client-1", "private-secret",
+                List.of("Google"), null);
+
+        assertThat(config.getLoginScopes()).isEqualTo("Mail.Read Calendar.ReadWrite");
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"", "   "})
+    void blankLoginScopesUseDefault(String scopes) {
+        var config = AurinkoConfig.fromEnvironment(Map.of("AURINKO_CLIENT_ID", "client-1",
+                "AURINKO_CLIENT_SECRET", "private-secret", "AURINKO_LOGIN_SCOPES", scopes));
+
+        assertThat(config.getLoginScopes()).isEqualTo("Mail.Read Calendar.ReadWrite");
+    }
+
+    @Test
+    void customLoginScopesTrimmed() {
+        var config = AurinkoConfig.fromEnvironment(Map.of("AURINKO_CLIENT_ID", "client-1",
+                "AURINKO_CLIENT_SECRET", "private-secret", "AURINKO_LOGIN_SCOPES", "  User.Read Mail.Read  "));
+
+        assertThat(config.getLoginScopes()).isEqualTo("User.Read Mail.Read");
     }
 
     @Test

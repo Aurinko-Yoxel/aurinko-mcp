@@ -28,9 +28,7 @@ public class AurinkoAuthorizeUrlBuilderImpl implements AurinkoAuthorizeUrlBuilde
         parameters.put("responseType", "code");
         parameters.put("returnUrl", returnUrl);
         parameters.put("state", state);
-        if (config.getLoginScopes() != null) {
-            parameters.put("scopes", config.getLoginScopes());
-        }
+        parameters.put("scopes", config.getLoginScopes());
         return url(parameters);
     }
 

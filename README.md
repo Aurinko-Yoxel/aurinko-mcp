@@ -57,7 +57,7 @@ Configuration is read from environment variables:
 | `AURINKO_CLIENT_ID` | Required | Aurinko application's client ID |
 | `AURINKO_CLIENT_SECRET` | Required | Aurinko application's secret in base64url format; omitted from configuration `toString` and never logged |
 | `AURINKO_LOGIN_SERVICE_TYPES` | `Google,Office365` | Comma-separated login providers shown on the page |
-| `AURINKO_LOGIN_SCOPES` | Unset | Optional scopes passed to Aurinko's `authorizeUser` endpoint |
+| `AURINKO_LOGIN_SCOPES` | `Mail.Read Calendar.ReadWrite` | Scopes for the primary account used to sign in; without mail and calendar access, tools will return errors on that account |
 | `AURINKO_IMAP_SCOPES` | `Mail.Read` | Scopes requested when connecting an IMAP mailbox |
 | `AURINKO_CALDAV_SCOPES` | `Calendar.ReadWrite` | Scopes requested when connecting a CalDAV calendar |
 
@@ -171,7 +171,10 @@ The login page is always shown, including when only one provider is configured.
 Google uses `serviceType=Google`; Microsoft uses `serviceType=Office365`.
 Each button points to Aurinko's `/v1/auth/authorizeUser` with `accountRole=primary`,
 `responseType=code`, the configured application ID, callback URL, and login state.
-`scopes` is included only when configured.
+`scopes` is always included and defaults to `Mail.Read Calendar.ReadWrite`.
+Set `AURINKO_LOGIN_SCOPES` to override the primary account's scopes.
+
+After scopes change, users who signed in earlier must sign in again so the provider issues a token with the new permissions.
 
 Login state is an encrypted JWE of type `login`, valid for 10 minutes. It contains
 the original authorization request and a random nonce. The nonce is also stored
