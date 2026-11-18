@@ -37,6 +37,16 @@ public class UsedCodesMemoryImplTest {
     private final UsedCodes usedCodes = new UsedCodesMemoryImpl(clock);
 
     @Test
+    void customRetentionKeepsConnectionNonceForTenMinutes() {
+        var connectionCodes = new UsedCodesMemoryImpl(clock, Duration.ofMinutes(10));
+        assertThat(connectionCodes.markUsed("nonce")).isTrue();
+        now.updateAndGet(value -> value.plus(Duration.ofMinutes(10).minusSeconds(1)));
+        assertThat(connectionCodes.markUsed("nonce")).isFalse();
+        now.updateAndGet(value -> value.plusSeconds(1));
+        assertThat(connectionCodes.markUsed("nonce")).isTrue();
+    }
+
+    @Test
     void codeMarkedOnlyOnce() {
         assertThat(usedCodes.markUsed("code-1")).isTrue();
         assertThat(usedCodes.markUsed("code-1")).isFalse();

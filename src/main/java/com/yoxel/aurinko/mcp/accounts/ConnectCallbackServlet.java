@@ -3,6 +3,7 @@ package com.yoxel.aurinko.mcp.accounts;
 import com.yoxel.aurinko.mcp.aurinko.AurinkoAuthService;
 import com.yoxel.aurinko.mcp.aurinko.AurinkoException;
 import com.yoxel.aurinko.mcp.config.ServerConfig;
+import com.yoxel.aurinko.mcp.oauth.UsedCodes;
 import com.yoxel.aurinko.mcp.tools.ToolErrorLogger;
 import jakarta.servlet.http.HttpServlet;
 import jakarta.servlet.http.HttpServletRequest;
@@ -23,6 +24,7 @@ public class ConnectCallbackServlet extends HttpServlet {
     private final AurinkoAuthService authService;
     private final ConnectPageRenderer renderer;
     private final ServerConfig config;
+    private final UsedCodes usedCodes;
 
     @Override
     protected void doGet(HttpServletRequest request, HttpServletResponse response) throws IOException {
@@ -43,6 +45,10 @@ public class ConnectCallbackServlet extends HttpServlet {
         if (nonce == null || !MessageDigest.isEqual(nonce.getBytes(StandardCharsets.UTF_8),
                 state.getNonce().getBytes(StandardCharsets.UTF_8))) {
             badRequest(response, "Invalid connection nonce");
+            return;
+        }
+        if (!usedCodes.markUsed(state.getNonce())) {
+            badRequest(response, "Connection link already used");
             return;
         }
         response.setContentType("text/html");

@@ -12,6 +12,24 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 public class ServerConfigTest {
 
+    @ParameterizedTest
+    @ValueSource(strings = {"http://localhost", "http://127.0.0.1", "http://[::1]", "https://example.com"})
+    void secureOrLocalUrlAccepted(String url) {
+        var config = ServerConfig.fromEnvironment(Map.of("PUBLIC_URL", url,
+                "TOKEN_KEY", Base64.getEncoder().encodeToString(new byte[32])));
+
+        assertThat(config.getPublicUrl()).isEqualTo(url);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"http://example.com", "http://localhost.example.com"})
+    void remoteHttpUrlRejected(String url) {
+        assertThatThrownBy(() -> ServerConfig.fromEnvironment(Map.of("PUBLIC_URL", url,
+                "TOKEN_KEY", Base64.getEncoder().encodeToString(new byte[32]))))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("PUBLIC_URL must use HTTPS unless the host is local");
+    }
+
     @Test
     void missingTokenKeyRejected() {
         assertThatThrownBy(() -> ServerConfig.fromEnvironment(Map.of()))

@@ -22,6 +22,31 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 public class ConnectCallbackServletTest {
 
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void connectionLinkConsumedEvenWhenAurinkoFails(boolean fail) throws Exception {
+        var calls = new AtomicInteger();
+        try (var server = new ConnectServletTestServer((ListOnlyAccountService) userId -> List.of(), code -> {
+            calls.incrementAndGet();
+            if (fail) {
+                throw new AurinkoException();
+            }
+            return new AurinkoLogin("user-1", "private-session", 42);
+        })) {
+            String state = server.getStateManager().createState("user-1", "IMAP");
+            String cookie = cookie(server, state);
+
+            var first = server.get(path(state, "success", "provider-code"), cookie);
+            var repeated = server.get(path(state, "success", "provider-code"), cookie);
+
+            assertThat(first.statusCode()).isEqualTo(200);
+            assertThat(first.body()).contains(fail ? "Account was not connected." : "Account connected.");
+            assertThat(repeated.statusCode()).isEqualTo(400);
+            assertThat(repeated.body()).isEqualTo("Connection link already used");
+            assertThat(calls.get()).isEqualTo(1);
+        }
+    }
+
     @Test
     void matchingUserCompletesConnectionAndDeletesCookie() throws Exception {
         var calls = new AtomicInteger();

@@ -48,6 +48,9 @@ public class AurinkoConfig {
                 || uri.getQuery() != null || uri.getFragment() != null) {
             throw new IllegalArgumentException("AURINKO_URL must be an absolute HTTP or HTTPS URL");
         }
+        if ("http".equals(uri.getScheme()) && !LocalHostHelper.isLocal(uri)) {
+            throw new IllegalArgumentException("AURINKO_URL must use HTTPS unless the host is local");
+        }
         if (loginServiceTypes == null || loginServiceTypes.isEmpty()
                 || loginServiceTypes.stream().anyMatch(value -> value == null || value.isBlank())) {
             throw new IllegalArgumentException("AURINKO_LOGIN_SERVICE_TYPES must contain at least one service type");

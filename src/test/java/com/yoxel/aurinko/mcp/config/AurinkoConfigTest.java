@@ -1,6 +1,8 @@
 package com.yoxel.aurinko.mcp.config;
 
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 import java.util.Map;
 
@@ -8,6 +10,24 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 public class AurinkoConfigTest {
+
+    @ParameterizedTest
+    @ValueSource(strings = {"http://localhost", "http://127.0.0.1", "http://[::1]", "https://example.com"})
+    void secureOrLocalUrlAccepted(String url) {
+        var config = AurinkoConfig.fromEnvironment(Map.of("AURINKO_CLIENT_ID", "client-1",
+                "AURINKO_CLIENT_SECRET", "private-secret", "AURINKO_URL", url));
+
+        assertThat(config.getUrl()).isEqualTo(url);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"http://example.com", "http://localhost.example.com"})
+    void remoteHttpUrlRejected(String url) {
+        assertThatThrownBy(() -> AurinkoConfig.fromEnvironment(Map.of("AURINKO_CLIENT_ID", "client-1",
+                "AURINKO_CLIENT_SECRET", "private-secret", "AURINKO_URL", url)))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("AURINKO_URL must use HTTPS unless the host is local");
+    }
 
     @Test
     void missingClientIdRejected() {

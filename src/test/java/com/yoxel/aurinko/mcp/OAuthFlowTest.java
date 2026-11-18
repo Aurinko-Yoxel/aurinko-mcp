@@ -330,7 +330,7 @@ public class OAuthFlowTest {
     @Test
     void singleProviderShowsPageAndHttpCookieIsNotSecure() throws Exception {
         server.stop();
-        config = new ServerConfig("127.0.0.1", 0, "http://mcp.example.com",
+        config = new ServerConfig("127.0.0.1", 0, "http://localhost",
                 Base64.getEncoder().encodeToString(new byte[32]));
         var singleProvider = new AurinkoConfig(aurinko.getUrl(), "app-client", "app-secret", List.of("Google"), null);
         server = JettyServerFactory.create(config, singleProvider, AurinkoComponents.create(singleProvider));

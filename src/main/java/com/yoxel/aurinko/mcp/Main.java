@@ -8,10 +8,13 @@ import com.yoxel.aurinko.mcp.server.JettyServerFactory;
 import lombok.extern.slf4j.Slf4j;
 import org.eclipse.jetty.server.Server;
 
+import java.util.Locale;
+
 @Slf4j
 public class Main {
 
     public static void main(String[] args) throws Exception {
+        useEnglishMessages();
         ServerConfig config = ServerConfig.fromEnvironment();
         AurinkoConfig aurinkoConfig = AurinkoConfig.fromEnvironment();
         var aurinko = AurinkoComponents.create(aurinkoConfig);
@@ -24,5 +27,9 @@ public class Main {
         } finally {
             server.stop();
         }
+    }
+
+    public static void useEnglishMessages() {
+        Locale.setDefault(Locale.ENGLISH);
     }
 }

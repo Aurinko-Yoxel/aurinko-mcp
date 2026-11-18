@@ -50,9 +50,9 @@ Configuration is read from environment variables:
 | --- | --- | --- |
 | `HOST` | `127.0.0.1` | HTTP bind address |
 | `PORT` | `8080` | HTTP port, from 1 to 65535 |
-| `PUBLIC_URL` | `http://127.0.0.1:<PORT>` | External base URL used for token resource validation and OAuth metadata |
+| `PUBLIC_URL` | `http://127.0.0.1:<PORT>` | External base URL used for token resource validation and OAuth metadata; HTTPS required except for localhost, 127.0.0.1 and [::1] |
 | `TOKEN_KEY` | Required | Base64-encoded 32-byte AES encryption key; startup fails if absent or invalid |
-| `AURINKO_URL` | `https://api.aurinko.io` | Aurinko API base URL |
+| `AURINKO_URL` | `https://api.aurinko.io` | Aurinko API base URL; HTTPS required except for localhost, 127.0.0.1 and [::1] |
 | `AURINKO_CLIENT_ID` | Required | Aurinko application's client ID |
 | `AURINKO_CLIENT_SECRET` | Required | Aurinko application's secret in base64url format; omitted from configuration `toString` and never logged |
 | `AURINKO_LOGIN_SERVICE_TYPES` | `Google,Office365` | Comma-separated login providers shown on the page |
@@ -418,7 +418,10 @@ The connection flow uses:
   require a Bearer token.
 
 Connection state is a JWE of type `connect` valid for 10 minutes, with a random
-32-byte base64url nonce. The user signature is hex-encoded HMAC-SHA256 of
+32-byte base64url nonce. Each connection link can be used only once: after a callback
+with valid state and cookie, it is consumed even if the connection fails. Reusing it
+returns HTTP 400 with `Connection link already used`.
+The user signature is hex-encoded HMAC-SHA256 of
 `userId + timestampSeconds`, using the application's base64url-decoded client
 secret as the key. The timestamp comes from the server clock.
 

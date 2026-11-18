@@ -3,6 +3,7 @@ package com.yoxel.aurinko.mcp.support;
 import com.yoxel.aurinko.mcp.accounts.ConnectCallbackServlet;
 import com.yoxel.aurinko.mcp.accounts.ConnectPageRenderer;
 import com.yoxel.aurinko.mcp.accounts.ConnectStartServlet;
+import com.yoxel.aurinko.mcp.accounts.ConnectState;
 import com.yoxel.aurinko.mcp.accounts.ConnectStateManager;
 import com.yoxel.aurinko.mcp.accounts.ConnectStateManagerJweImpl;
 import com.yoxel.aurinko.mcp.aurinko.AurinkoAccountService;
@@ -12,6 +13,7 @@ import com.yoxel.aurinko.mcp.aurinko.UserSignatureHelper;
 import com.yoxel.aurinko.mcp.config.AurinkoConfig;
 import com.yoxel.aurinko.mcp.config.ServerConfig;
 import com.yoxel.aurinko.mcp.oauth.JweHelper;
+import com.yoxel.aurinko.mcp.oauth.UsedCodesMemoryImpl;
 import org.eclipse.jetty.ee11.servlet.ServletContextHandler;
 import org.eclipse.jetty.ee11.servlet.ServletHolder;
 import org.eclipse.jetty.server.Server;
@@ -41,7 +43,7 @@ public class ConnectServletTestServer implements AutoCloseable {
 
     public ConnectServletTestServer(AurinkoAccountService accounts, AurinkoAuthService auth, boolean secure) throws Exception {
         var config = new ServerConfig("127.0.0.1", 0,
-                (secure ? "https" : "http") + "://mcp.example.com", Base64.getEncoder().encodeToString(new byte[32]));
+                (secure ? "https://mcp.example.com" : "http://localhost"), Base64.getEncoder().encodeToString(new byte[32]));
         var aurinkoConfig = new AurinkoConfig("https://api.example.com", "app-client", "_-7dzLuqmYh3ZlVEMyIRAA",
                 List.of("Google"), null);
         var clock = Clock.fixed(Instant.ofEpochSecond(1800000000), ZoneOffset.UTC);
@@ -57,7 +59,8 @@ public class ConnectServletTestServer implements AutoCloseable {
         context.setContextPath("/");
         context.addServlet(new ServletHolder(new ConnectStartServlet(stateManager, accounts, builder, renderer, config)),
                 "/accounts/connect");
-        context.addServlet(new ServletHolder(new ConnectCallbackServlet(stateManager, auth, renderer, config)),
+        context.addServlet(new ServletHolder(new ConnectCallbackServlet(stateManager, auth, renderer, config,
+                new UsedCodesMemoryImpl(clock, ConnectState.LIFETIME))),
                 "/accounts/callback");
         server.setHandler(context);
         server.start();

@@ -57,6 +57,9 @@ public class ServerConfig {
                 || uri.getQuery() != null || uri.getFragment() != null) {
             throw new IllegalArgumentException("PUBLIC_URL must be an absolute HTTP or HTTPS URL without credentials, query or fragment");
         }
+        if ("http".equals(uri.getScheme()) && !LocalHostHelper.isLocal(uri)) {
+            throw new IllegalArgumentException("PUBLIC_URL must use HTTPS unless the host is local");
+        }
         return normalized;
     }
 

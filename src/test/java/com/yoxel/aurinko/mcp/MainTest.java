@@ -30,6 +30,7 @@ import java.time.Clock;
 import java.time.Duration;
 import java.util.Base64;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -142,6 +143,37 @@ public class MainTest {
             var result = client.callTool(ping);
             assertThat(result.isError()).isFalse();
             assertThat(result.content()).containsExactly(new McpSchema.TextContent("pong"));
+        }
+    }
+
+    @Test
+    void missingToolArgumentUsesEnglishMessagesWithRussianDefaultLocale() throws Exception {
+        Locale originalLocale = Locale.getDefault();
+        try {
+            Locale.setDefault(Locale.forLanguageTag("ru-RU"));
+            Main.useEnglishMessages();
+            server.stop();
+            startServer();
+            var manager = new TokenManagerJweImpl(new JweHelper(config.getTokenKey(), Clock.systemUTC()), config.getMcpUrl());
+            String token = manager.createAccessToken(new McpPrincipal("user-1", "user-session", "client-1"));
+            var transport = HttpClientStreamableHttpTransport.builder(baseUrl)
+                    .endpoint("/mcp")
+                    .requestBuilder(HttpRequest.newBuilder().header("Authorization", "Bearer " + token))
+                    .build();
+
+            try (var client = McpClient.sync(transport).requestTimeout(Duration.ofSeconds(10)).build()) {
+                client.initialize();
+                var result = client.callTool(McpSchema.CallToolRequest.builder("disconnect_account")
+                        .arguments(Map.of()).build());
+
+                assertThat(result.isError()).isTrue();
+                assertThat(result.content()).isNotEmpty().allSatisfy(content -> {
+                    String text = ((McpSchema.TextContent) content).text();
+                    assertThat(text).contains("accountId", "required").doesNotContainPattern("\\p{IsCyrillic}");
+                });
+            }
+        } finally {
+            Locale.setDefault(originalLocale);
         }
     }
 

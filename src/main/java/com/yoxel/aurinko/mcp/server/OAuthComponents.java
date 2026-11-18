@@ -1,5 +1,6 @@
 package com.yoxel.aurinko.mcp.server;
 
+import com.yoxel.aurinko.mcp.accounts.ConnectState;
 import com.yoxel.aurinko.mcp.accounts.ConnectStateManager;
 import com.yoxel.aurinko.mcp.accounts.ConnectStateManagerJweImpl;
 import com.yoxel.aurinko.mcp.aurinko.AurinkoAuthorizeUrlBuilder;
@@ -29,6 +30,7 @@ import com.yoxel.aurinko.mcp.oauth.RefreshTokenGrantHandler;
 import com.yoxel.aurinko.mcp.oauth.TokenManager;
 import com.yoxel.aurinko.mcp.oauth.TokenManagerJweImpl;
 import com.yoxel.aurinko.mcp.oauth.UsedCodesMemoryImpl;
+import com.yoxel.aurinko.mcp.oauth.UsedCodes;
 import com.yoxel.aurinko.mcp.oauth.UserLogin;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
@@ -51,6 +53,7 @@ public class OAuthComponents {
     AuthorizationCompleter authorizationCompleter;
     LoginStateManager loginStateManager;
     ConnectStateManager connectStateManager;
+    UsedCodes connectUsedCodes;
     AurinkoAuthorizeUrlBuilder authorizeUrlBuilder;
     UserLogin userLogin;
 
@@ -69,11 +72,12 @@ public class OAuthComponents {
         var signatureHelper = new UserSignatureHelper(aurinkoConfig);
         var urlBuilder = new AurinkoAuthorizeUrlBuilderImpl(aurinkoConfig, config, signatureHelper, clock);
         var connectStateManager = new ConnectStateManagerJweImpl(jweHelper);
+        var connectUsedCodes = new UsedCodesMemoryImpl(clock, ConnectState.LIFETIME);
         var renderer = new LoginPageRendererImpl();
         var userLogin = new AurinkoUserLogin(loginStateManager, urlBuilder, renderer, config, aurinkoConfig);
         var sessionOwners = new McpSessionOwnersMemoryImpl(clock);
         return new OAuthComponents(jweHelper, tokenManager, tokenManager, sessionOwners, registrationManager, redirectUriValidator,
-                List.of(codeGrantHandler, refreshGrantHandler), completer, loginStateManager, connectStateManager,
+                List.of(codeGrantHandler, refreshGrantHandler), completer, loginStateManager, connectStateManager, connectUsedCodes,
                 urlBuilder, userLogin);
     }
 }

@@ -24,6 +24,9 @@ public class TokenServlet extends HttpServlet {
         response.setCharacterEncoding("UTF-8");
         response.setHeader("Cache-Control", "no-store");
         try {
+            if (request.getQueryString() != null && !request.getQueryString().isEmpty()) {
+                throw new OAuthErrorException("invalid_request", "Token parameters must be sent in the request body");
+            }
             try {
                 registrationManager.find(request.getParameter("client_id"));
             } catch (InvalidClientException e) {
