@@ -37,7 +37,7 @@ public class AurinkoAuthorizeUrlBuilderTest {
         assertThat(url.getPath()).isEqualTo("/v1/auth/authorizeUser");
         assertThat(query(url)).isEqualTo(Map.of("clientId", "client + &", "serviceType", "Google",
                 "accountRole", "primary", "responseType", "code", "returnUrl", callback,
-                "state", "state + &= юзер", "scopes", "User.Read Mail.Read"));
+                "state", "state + &= юзер", "scopes", "User.Read Mail.Read", "prompt", "select_account"));
     }
 
     @ParameterizedTest
@@ -49,7 +49,8 @@ public class AurinkoAuthorizeUrlBuilderTest {
         URI url = URI.create(builder.build(serviceType, "https://mcp.example.com/callback", "state"));
 
         assertThat(query(url)).containsEntry("serviceType", serviceType)
-                .containsEntry("scopes", "Mail.Read Calendar.ReadWrite");
+                .containsEntry("scopes", "Mail.Read Calendar.ReadWrite")
+                .containsEntry("prompt", "select_account");
     }
 
     @ParameterizedTest
@@ -67,7 +68,8 @@ public class AurinkoAuthorizeUrlBuilderTest {
                 .containsEntry("userSignature", "f8fa1d83f45f4a9eb377dab9727b2e6fe6a671a425b303be48243e4d763523fd")
                 .containsEntry("state", "state + &=")
                 .containsEntry("returnUrl", "https://mcp.example.com/accounts/callback")
-                .containsEntry("scopes", "IMAP".equals(serviceType) ? "Mail.Read Mail.Send" : "Calendar.ReadWrite");
+                .containsEntry("scopes", "IMAP".equals(serviceType) ? "Mail.Read Mail.Send" : "Calendar.ReadWrite")
+                .doesNotContainKey("prompt");
     }
 
     @ParameterizedTest
@@ -75,7 +77,8 @@ public class AurinkoAuthorizeUrlBuilderTest {
     void otherProvidersUseLoginScopes(String type) {
         var config = new AurinkoConfig("https://api.example.com", "client", "secret", List.of("Google"), "custom.scopes");
         assertThat(query(URI.create(builder(config).buildConnectUrl(type, "user", "state"))))
-                .containsEntry("serviceType", type).containsEntry("scopes", "custom.scopes");
+                .containsEntry("serviceType", type).containsEntry("scopes", "custom.scopes")
+                .doesNotContainKey("prompt");
     }
 
     @Test

@@ -169,6 +169,7 @@ The following routes are public:
 clients authenticate with their registered `client_id`; there is no client secret.
 
 The login page is always shown, including when only one provider is configured.
+The sign-in URL always requests that Microsoft and Google show an account chooser (`prompt=select_account`).
 Google uses `serviceType=Google`; Microsoft uses `serviceType=Office365`.
 Each button points to Aurinko's `/v1/auth/authorizeUser` with `accountRole=primary`,
 `responseType=code`, the configured application ID, callback URL, and login state.
