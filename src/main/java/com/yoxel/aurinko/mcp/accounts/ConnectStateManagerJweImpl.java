@@ -16,7 +16,7 @@ public class ConnectStateManagerJweImpl implements ConnectStateManager {
 
     @Override
     public String createState(String userId, String serviceType) {
-        if (userId == null || userId.isBlank() || !("IMAP".equals(serviceType) || "CalDav".equals(serviceType))) {
+        if (userId == null || userId.isBlank() || (serviceType == null || serviceType.isBlank())) {
             throw new IllegalArgumentException("A user and supported connection service type are required");
         }
         byte[] nonce = new byte[32];
@@ -35,7 +35,7 @@ public class ConnectStateManagerJweImpl implements ConnectStateManager {
             var data = jweHelper.decrypt(state, "connect");
             if (!(data.get("userId") instanceof String userId) || userId.isBlank()
                     || !(data.get("serviceType") instanceof String serviceType)
-                    || !("IMAP".equals(serviceType) || "CalDav".equals(serviceType))
+                    || serviceType.isBlank()
                     || !(data.get("nonce") instanceof String nonce) || nonce.isBlank()) {
                 throw new InvalidConnectStateException();
             }

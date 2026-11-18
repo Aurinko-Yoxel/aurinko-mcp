@@ -23,15 +23,16 @@ public class ConnectStateManagerJweImplTest {
     private final JweHelper helper = new JweHelper(key, clock);
     private final ConnectStateManager manager = new ConnectStateManagerJweImpl(helper);
 
-    @Test
-    void statePreservesUserAndServiceWithRandomNonce() {
-        var state = manager.parseState(manager.createState("user-1", "IMAP"));
+    @ParameterizedTest
+    @ValueSource(strings = {"IMAP", "CalDav", "Google", "Office365", "iCloud", "Salesforce"})
+    void statePreservesUserAndServiceWithRandomNonce(String serviceType) {
+        var state = manager.parseState(manager.createState("user-1", serviceType));
 
         assertThat(state.getUserId()).isEqualTo("user-1");
-        assertThat(state.getServiceType()).isEqualTo("IMAP");
+        assertThat(state.getServiceType()).isEqualTo(serviceType);
         assertThat(state.getNonce()).matches("[A-Za-z0-9_-]{43}");
         assertThat(Base64.getUrlDecoder().decode(state.getNonce())).hasSize(32);
-        var other = manager.parseState(manager.createState("user-1", "IMAP"));
+        var other = manager.parseState(manager.createState("user-1", serviceType));
         assertThat(other.getNonce()).isNotEqualTo(state.getNonce());
     }
 

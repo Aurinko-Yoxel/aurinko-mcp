@@ -4,6 +4,7 @@ import com.yoxel.aurinko.mcp.accounts.ConnectState;
 import com.yoxel.aurinko.mcp.accounts.ConnectStateManager;
 import com.yoxel.aurinko.mcp.accounts.InvalidConnectStateException;
 import com.yoxel.aurinko.mcp.auth.McpPrincipalHelper;
+import com.yoxel.aurinko.mcp.aurinko.ServiceTypeCatalog;
 import com.yoxel.aurinko.mcp.config.ServerConfig;
 import io.modelcontextprotocol.json.McpJsonMapper;
 import io.modelcontextprotocol.server.McpServerFeatures;
@@ -21,9 +22,13 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class ConnectAccountTool implements McpTool {
 
+    private static final String SELECTION_RULE = "Choose serviceType by the provider of the user's email address. "
+            + "Use IMAP or CalDav only when no other listed type matches the provider.";
+
     private final ConnectStateManager stateManager;
     private final ServerConfig config;
     private final McpJsonMapper jsonMapper;
+    private final List<String> allowedServiceTypes;
 
     @Override
     public McpServerFeatures.SyncToolSpecification specification() {
@@ -31,17 +36,15 @@ public class ConnectAccountTool implements McpTool {
                 .tool(McpSchema.Tool.builder("connect_account", Map.of(
                                 "type", "object", "additionalProperties", false,
                                 "required", List.of("serviceType"), "properties", Map.of("serviceType",
-                                        Map.of("type", "string", "enum", List.of("IMAP", "CalDav")))))
-                        .description("Get a link that the user must open in a browser to connect an IMAP mailbox or a CalDAV calendar")
+                                        Map.of("type", "string", "enum", allowedServiceTypes, "description", SELECTION_RULE))))
+                        .description(description())
                         .annotations(McpSchema.ToolAnnotations.builder().readOnlyHint(false).destructiveHint(false).build())
                         .build())
                 .callHandler((exchange, request) -> {
                     var principal = McpPrincipalHelper.fromExchange(exchange);
                     try {
                         String serviceType = new ToolArguments(request.arguments()).requireString("serviceType");
-                        if (!("IMAP".equals(serviceType) || "CalDav".equals(serviceType))) {
-                            throw new InvalidArgumentException("serviceType must be IMAP or CalDav");
-                        }
+                        serviceType = canonicalServiceType(serviceType);
                         String state = stateManager.createState(principal.getUserId(), serviceType);
                         String url = config.getPublicUrl() + "/accounts/connect?state="
                                 + URLEncoder.encode(state, StandardCharsets.UTF_8);
@@ -56,4 +59,17 @@ public class ConnectAccountTool implements McpTool {
                 })
                 .build();
     }
+    private String canonicalServiceType(String value) {
+        return allowedServiceTypes.stream().filter(type -> type.equalsIgnoreCase(value)).findFirst()
+                .orElseThrow(() -> new InvalidArgumentException("serviceType must be one of: "
+                        + String.join(", ", allowedServiceTypes)));
+    }
+
+    private String description() {
+        String types = allowedServiceTypes.stream().map(type -> type + ": " + ServiceTypeCatalog.describe(type))
+                .collect(java.util.stream.Collectors.joining("\n"));
+        return "Get a link that the user must open in a browser to connect another mailbox or calendar.\n"
+                + types + "\n" + SELECTION_RULE;
+    }
+
 }

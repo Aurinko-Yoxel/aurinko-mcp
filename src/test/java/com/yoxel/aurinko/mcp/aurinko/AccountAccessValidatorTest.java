@@ -13,6 +13,14 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 public class AccountAccessValidatorTest {
 
+    @Test
+    void unsupportedAccountTypeRejectedForDataAndAccountActions() {
+        var validator = new AccountAccessValidator(new AurinkoAccountServiceFilterImpl((ListOnlyAccountService) userId ->
+                List.of(new AurinkoAccount(42, "Salesforce", null, true)), List.of("IMAP", "CalDav")));
+        assertThatThrownBy(() -> validator.validate("user", 42)).isInstanceOf(AccountAccessDeniedException.class);
+        assertThatThrownBy(() -> validator.validateOwnership("user", 42)).isInstanceOf(AccountAccessDeniedException.class);
+    }
+
     @ParameterizedTest
     @ValueSource(booleans = {true, false})
     void ownershipAcceptsActiveAndInactiveAccounts(boolean active) {

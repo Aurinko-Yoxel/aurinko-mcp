@@ -19,6 +19,7 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 public class AurinkoAuthorizeUrlBuilderTest {
 
@@ -67,6 +68,21 @@ public class AurinkoAuthorizeUrlBuilderTest {
                 .containsEntry("state", "state + &=")
                 .containsEntry("returnUrl", "https://mcp.example.com/accounts/callback")
                 .containsEntry("scopes", "IMAP".equals(serviceType) ? "Mail.Read Mail.Send" : "Calendar.ReadWrite");
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"iCloud", "Office365"})
+    void otherProvidersUseLoginScopes(String type) {
+        var config = new AurinkoConfig("https://api.example.com", "client", "secret", List.of("Google"), "custom.scopes");
+        assertThat(query(URI.create(builder(config).buildConnectUrl(type, "user", "state"))))
+                .containsEntry("serviceType", type).containsEntry("scopes", "custom.scopes");
+    }
+
+    @Test
+    void unconfiguredProviderRejected() {
+        var config = new AurinkoConfig("https://api.example.com", "client", "secret", List.of("Google"), null);
+        assertThatThrownBy(() -> builder(config).buildConnectUrl("Salesforce", "user", "state"))
+                .isInstanceOf(IllegalArgumentException.class);
     }
 
     private AurinkoAuthorizeUrlBuilder builder(AurinkoConfig config) {

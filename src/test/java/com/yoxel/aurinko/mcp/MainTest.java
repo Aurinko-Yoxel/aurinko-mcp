@@ -52,7 +52,8 @@ public class MainTest {
                 aurinkoConfig.getClientId(), aurinkoConfig.getClientSecret());
         var aurinko = AurinkoComponents.create(aurinkoConfig, aurinkoService, (ListOnlyAccountService) userId -> {
             accountUserId.set(userId);
-            return List.of(new AurinkoAccount(42, "IMAP", "user@example.com", true));
+            return List.of(new AurinkoAccount(42, "IMAP", "user@example.com", true),
+                    new AurinkoAccount(43, "Salesforce", "crm@example.com", true));
         });
         server = JettyServerFactory.create(config, aurinkoConfig, aurinko);
         server.start();
@@ -189,6 +190,21 @@ public class MainTest {
         assertThat(health.body()).isEqualTo("{\"status\":\"ok\"}");
         assertThat(mcp.statusCode()).isEqualTo(401);
         assertThat(accountUserId.get()).isNull();
+    }
+
+    @Test
+    void lowercaseProviderAcceptedOverHttp() throws Exception {
+        var manager = new TokenManagerJweImpl(new JweHelper(config.getTokenKey(), Clock.systemUTC()), config.getMcpUrl());
+        String token = manager.createAccessToken(new McpPrincipal("user-1", "user-session", "client-1"));
+        var transport = HttpClientStreamableHttpTransport.builder(baseUrl).endpoint("/mcp")
+                .requestBuilder(HttpRequest.newBuilder().header("Authorization", "Bearer " + token)).build();
+        try (var client = McpClient.sync(transport).requestTimeout(Duration.ofSeconds(10)).build()) {
+            client.initialize();
+            var result = client.callTool(McpSchema.CallToolRequest.builder("connect_account")
+                    .arguments(Map.of("serviceType", "icloud")).build());
+            assertThat(result.isError()).isFalse();
+            assertThat(((McpSchema.TextContent) result.content().get(0)).text()).contains("accounts/connect?state=");
+        }
     }
 
     @Test

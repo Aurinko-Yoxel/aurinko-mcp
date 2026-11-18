@@ -11,6 +11,7 @@ import java.util.Map;
 @Value
 public class AurinkoConfig {
 
+    private static final List<String> DEFAULT_ACCOUNT_SERVICE_TYPES = List.of("Google", "Office365", "iCloud", "IMAP", "CalDav");
     private static final String DEFAULT_LOGIN_SCOPES = "Mail.Read Calendar.ReadWrite";
     private static final String DEFAULT_IMAP_SCOPES = "Mail.Read";
     private static final String DEFAULT_CALDAV_SCOPES = "Calendar.ReadWrite";
@@ -20,6 +21,7 @@ public class AurinkoConfig {
     @ToString.Exclude
     String clientSecret;
     List<String> loginServiceTypes;
+    List<String> accountServiceTypes;
     String loginScopes;
     String imapScopes;
     String caldavScopes;
@@ -31,6 +33,13 @@ public class AurinkoConfig {
 
     public AurinkoConfig(String url, String clientId, String clientSecret,
             List<String> loginServiceTypes, String loginScopes, String imapScopes, String caldavScopes) {
+        this(url, clientId, clientSecret, loginServiceTypes, loginScopes, imapScopes, caldavScopes,
+                DEFAULT_ACCOUNT_SERVICE_TYPES);
+    }
+
+    public AurinkoConfig(String url, String clientId, String clientSecret,
+            List<String> loginServiceTypes, String loginScopes, String imapScopes, String caldavScopes,
+            List<String> accountServiceTypes) {
         if (clientId == null || clientId.isBlank()) {
             throw new IllegalArgumentException("AURINKO_CLIENT_ID is required");
         }
@@ -56,6 +65,11 @@ public class AurinkoConfig {
                 || loginServiceTypes.stream().anyMatch(value -> value == null || value.isBlank())) {
             throw new IllegalArgumentException("AURINKO_LOGIN_SERVICE_TYPES must contain at least one service type");
         }
+        if (accountServiceTypes == null || accountServiceTypes.isEmpty()
+                || accountServiceTypes.stream().anyMatch(value -> value == null || value.isBlank())) {
+            throw new IllegalArgumentException("AURINKO_ACCOUNT_SERVICE_TYPES must contain at least one service type");
+        }
+        this.accountServiceTypes = accountServiceTypes.stream().map(String::trim).distinct().toList();
         this.url = normalized;
         this.clientId = clientId;
         this.clientSecret = clientSecret;
@@ -75,6 +89,8 @@ public class AurinkoConfig {
                 Arrays.asList(environment.getOrDefault("AURINKO_LOGIN_SERVICE_TYPES", "Google,Office365").split(",", -1)),
                 environment.getOrDefault("AURINKO_LOGIN_SCOPES", DEFAULT_LOGIN_SCOPES),
                 environment.getOrDefault("AURINKO_IMAP_SCOPES", DEFAULT_IMAP_SCOPES),
-                environment.getOrDefault("AURINKO_CALDAV_SCOPES", DEFAULT_CALDAV_SCOPES));
+                environment.getOrDefault("AURINKO_CALDAV_SCOPES", DEFAULT_CALDAV_SCOPES),
+                Arrays.asList(environment.getOrDefault("AURINKO_ACCOUNT_SERVICE_TYPES",
+                        String.join(",", DEFAULT_ACCOUNT_SERVICE_TYPES)).split(",", -1)));
     }
 }

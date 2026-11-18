@@ -3,6 +3,8 @@ package com.yoxel.aurinko.mcp.server;
 import com.yoxel.aurinko.mcp.Main;
 import com.yoxel.aurinko.mcp.auth.McpPrincipalHelper;
 import com.yoxel.aurinko.mcp.tools.McpTool;
+import com.yoxel.aurinko.mcp.tools.ConnectAccountSchemaValidator;
+import io.modelcontextprotocol.json.McpJsonDefaults;
 import io.modelcontextprotocol.json.McpJsonMapper;
 import io.modelcontextprotocol.server.McpServer;
 import io.modelcontextprotocol.server.McpSyncServer;
@@ -30,7 +32,12 @@ public class McpServerFactory {
                 .serverInfo("aurinko-mcp", version != null ? version : "development")
                 .capabilities(McpSchema.ServerCapabilities.builder().tools(false).build());
         for (McpTool tool : tools) {
-            builder.tools(tool.specification());
+            var specification = tool.specification();
+            if ("connect_account".equals(specification.tool().name())) {
+                builder.jsonSchemaValidator(new ConnectAccountSchemaValidator(McpJsonDefaults.getSchemaValidator(),
+                        specification.tool().inputSchema()));
+            }
+            builder.tools(specification);
         }
         return builder.build();
     }

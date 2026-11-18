@@ -3,6 +3,7 @@ package com.yoxel.aurinko.mcp.server;
 import com.yoxel.aurinko.AurinkoService;
 import com.yoxel.aurinko.mcp.aurinko.AccountAccessValidator;
 import com.yoxel.aurinko.mcp.aurinko.AurinkoAccountService;
+import com.yoxel.aurinko.mcp.aurinko.AurinkoAccountServiceFilterImpl;
 import com.yoxel.aurinko.mcp.aurinko.AurinkoAccountServiceImpl;
 import com.yoxel.aurinko.mcp.aurinko.AurinkoAuthService;
 import com.yoxel.aurinko.mcp.aurinko.AurinkoAuthServiceImpl;
@@ -35,6 +36,7 @@ public class AurinkoComponents {
     }
 
     public static AurinkoComponents create(AurinkoConfig config, AurinkoService service, AurinkoAccountService accountService) {
+        accountService = new AurinkoAccountServiceFilterImpl(accountService, config.getAccountServiceTypes());
         var clientFactory = new AurinkoClientFactoryImpl(config);
         return new AurinkoComponents(service, accountService, new AurinkoAuthServiceImpl(service), clientFactory,
                 new AurinkoEmailServiceImpl(clientFactory), new AurinkoCalendarServiceImpl(clientFactory),

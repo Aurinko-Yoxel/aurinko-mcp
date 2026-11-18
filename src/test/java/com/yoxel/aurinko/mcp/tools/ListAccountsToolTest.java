@@ -3,6 +3,7 @@ package com.yoxel.aurinko.mcp.tools;
 import com.yoxel.aurinko.mcp.support.ListOnlyAccountService;
 import com.yoxel.aurinko.mcp.aurinko.AurinkoAccount;
 import com.yoxel.aurinko.mcp.aurinko.AurinkoAccountService;
+import com.yoxel.aurinko.mcp.aurinko.AurinkoAccountServiceFilterImpl;
 import com.yoxel.aurinko.mcp.aurinko.AurinkoException;
 import com.yoxel.aurinko.mcp.auth.BearerAuthFilter;
 import com.yoxel.aurinko.mcp.auth.McpPrincipal;
@@ -60,6 +61,14 @@ public class ListAccountsToolTest {
 
         assertThat(result.isError()).isTrue();
         assertThat(result.content()).containsExactly(new McpSchema.TextContent("Failed to load accounts from Aurinko"));
+    }
+
+    @Test
+    void unsupportedAccountTypeHidden() {
+        var result = call(new AurinkoAccountServiceFilterImpl((ListOnlyAccountService) userId -> List.of(
+                new AurinkoAccount(42, "Salesforce", "user@example.com", true)), List.of("IMAP", "CalDav")));
+        assertThat(result.isError()).isFalse();
+        assertThat(result.content()).containsExactly(new McpSchema.TextContent("[]"));
     }
 
     private McpSchema.CallToolResult call(AurinkoAccountService service) {

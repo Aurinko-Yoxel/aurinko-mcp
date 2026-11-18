@@ -25,7 +25,8 @@ public class ListAccountsTool implements McpTool {
                 .tool(McpSchema.Tool.builder("list_accounts", Map.of(
                                 "type", "object", "properties", Map.of(), "additionalProperties", false))
                         .description("List mailboxes and calendars connected by the current user. "
-                                + "The accountId from this response is used in disconnect_account.")
+                                + "Only account types supported by this server are shown. "
+                                + "The accountId from this response is used in mail and calendar tools and disconnect_account.")
                         .annotations(McpSchema.ToolAnnotations.builder().readOnlyHint(true).build())
                         .build())
                 .callHandler((exchange, request) -> {

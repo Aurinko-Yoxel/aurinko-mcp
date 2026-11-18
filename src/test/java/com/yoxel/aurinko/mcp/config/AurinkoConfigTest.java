@@ -31,6 +31,21 @@ public class AurinkoConfigTest {
     }
 
     @Test
+    void accountTypesTrimmedDeduplicatedAndOrdered() {
+        var config = AurinkoConfig.fromEnvironment(Map.of("AURINKO_CLIENT_ID", "client", "AURINKO_CLIENT_SECRET", "secret",
+                "AURINKO_ACCOUNT_SERVICE_TYPES", " Office365, Salesforce ,Office365, IMAP "));
+        assertThat(config.getAccountServiceTypes()).containsExactly("Office365", "Salesforce", "IMAP");
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"", " ", "IMAP,", "IMAP, ,CalDav"})
+    void emptyAccountTypesRejected(String types) {
+        assertThatThrownBy(() -> AurinkoConfig.fromEnvironment(Map.of("AURINKO_CLIENT_ID", "client",
+                "AURINKO_CLIENT_SECRET", "secret", "AURINKO_ACCOUNT_SERVICE_TYPES", types)))
+                .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("AURINKO_ACCOUNT_SERVICE_TYPES");
+    }
+
+    @Test
     void missingClientIdRejected() {
         assertThatThrownBy(() -> AurinkoConfig.fromEnvironment(Map.of("AURINKO_CLIENT_SECRET", "private-secret")))
                 .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("AURINKO_CLIENT_ID is required");
@@ -50,6 +65,7 @@ public class AurinkoConfigTest {
         assertThat(config.getUrl()).isEqualTo("https://api.aurinko.io");
         assertThat(config.getLoginServiceTypes()).containsExactly("Google", "Office365");
         assertThat(config.getLoginScopes()).isEqualTo("Mail.Read Calendar.ReadWrite");
+        assertThat(config.getAccountServiceTypes()).containsExactly("Google", "Office365", "iCloud", "IMAP", "CalDav");
         assertThat(config.getImapScopes()).isEqualTo("Mail.Read");
         assertThat(config.getCaldavScopes()).isEqualTo("Calendar.ReadWrite");
         assertThat(config.toString()).doesNotContain("private-secret");

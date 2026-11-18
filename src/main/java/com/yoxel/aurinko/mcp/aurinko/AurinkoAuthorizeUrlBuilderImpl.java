@@ -34,11 +34,10 @@ public class AurinkoAuthorizeUrlBuilderImpl implements AurinkoAuthorizeUrlBuilde
 
     @Override
     public String buildConnectUrl(String serviceType, String userId, String state) {
-        String scopes = switch (serviceType) {
-            case "IMAP" -> config.getImapScopes();
-            case "CalDav" -> config.getCaldavScopes();
-            default -> throw new IllegalArgumentException("Unsupported connection service type");
-        };
+        serviceType = config.getAccountServiceTypes().stream().filter(serviceType::equalsIgnoreCase).findFirst()
+                .orElseThrow(() -> new IllegalArgumentException("Unsupported connection service type"));
+        String scopes = "IMAP".equalsIgnoreCase(serviceType) ? config.getImapScopes()
+                : "CalDav".equalsIgnoreCase(serviceType) ? config.getCaldavScopes() : config.getLoginScopes();
         long timestamp = clock.instant().getEpochSecond();
         Map<String, String> parameters = new LinkedHashMap<>();
         parameters.put("clientId", config.getClientId());

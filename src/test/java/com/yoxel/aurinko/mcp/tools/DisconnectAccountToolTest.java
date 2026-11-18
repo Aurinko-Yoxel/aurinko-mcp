@@ -8,6 +8,7 @@ import com.google.api.client.http.HttpResponseException;
 import com.yoxel.aurinko.mcp.aurinko.AccountAccessValidator;
 import com.yoxel.aurinko.mcp.aurinko.AurinkoAccount;
 import com.yoxel.aurinko.mcp.aurinko.AurinkoAccountService;
+import com.yoxel.aurinko.mcp.aurinko.AurinkoAccountServiceFilterImpl;
 import com.yoxel.aurinko.mcp.aurinko.AurinkoException;
 import com.yoxel.aurinko.mcp.auth.BearerAuthFilter;
 import com.yoxel.aurinko.mcp.auth.McpPrincipal;
@@ -33,7 +34,7 @@ public class DisconnectAccountToolTest {
 
     private final McpPrincipal principal = new McpPrincipal("user-1", "private-session", "client-1");
     private final AccountService accountService = new AccountService();
-    private final DisconnectAccountTool tool = new DisconnectAccountTool(new AccountAccessValidator(accountService),
+    private final DisconnectAccountTool tool = new DisconnectAccountTool(new AccountAccessValidator(new AurinkoAccountServiceFilterImpl(accountService, List.of("IMAP", "CalDav"))),
             accountService, McpJsonDefaults.getMapper());
 
     @ParameterizedTest
@@ -57,6 +58,15 @@ public class DisconnectAccountToolTest {
     void foreignAccountRejectedBeforeDeletion() {
         var result = call(Map.of("accountId", 43));
 
+        assertThat(result.isError()).isTrue();
+        assertThat(result.content()).containsExactly(new McpSchema.TextContent("Account not found"));
+        assertThat(accountService.operations).containsExactly("list");
+    }
+
+    @Test
+    void unsupportedAccountTypeRejectedBeforeDeletion() {
+        accountService.serviceType = "Salesforce";
+        var result = call(Map.of("accountId", 42));
         assertThat(result.isError()).isTrue();
         assertThat(result.content()).containsExactly(new McpSchema.TextContent("Account not found"));
         assertThat(accountService.operations).containsExactly("list");
@@ -141,6 +151,7 @@ public class DisconnectAccountToolTest {
 
         private final List<String> operations = new ArrayList<>();
         private boolean active = true;
+        private String serviceType = "IMAP";
         private AurinkoException failure;
         private String deletedUserId;
         private long deletedAccountId;
@@ -149,7 +160,7 @@ public class DisconnectAccountToolTest {
         public List<AurinkoAccount> listAccounts(String userId) {
             assertThat(userId).isEqualTo(principal.getUserId());
             operations.add("list");
-            return List.of(new AurinkoAccount(42, "IMAP", "user@example.com", active));
+            return List.of(new AurinkoAccount(42, serviceType, "user@example.com", active));
         }
 
         @Override

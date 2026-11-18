@@ -5,6 +5,7 @@ import ch.qos.logback.classic.Logger;
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
 import com.yoxel.aurinko.mcp.aurinko.AccountAccessValidator;
+import com.yoxel.aurinko.mcp.aurinko.AurinkoAccountServiceFilterImpl;
 import com.yoxel.aurinko.mcp.aurinko.AurinkoAccount;
 import com.yoxel.aurinko.mcp.aurinko.AurinkoAccountService;
 import com.yoxel.aurinko.mcp.aurinko.AurinkoException;
@@ -66,6 +67,16 @@ public class SearchMessagesToolTest {
     @Test
     void foreignAccountRejectedBeforeSearching() {
         var result = call(accounts, Map.of("accountId", 43));
+
+        assertThat(result.isError()).isTrue();
+        assertThat(result.content()).containsExactly(new McpSchema.TextContent("Account not found"));
+        assertThat(emailService.getCalls()).isZero();
+    }
+
+    @Test
+    void unsupportedServiceTypeRejectedBeforeServiceCall() {
+        var result = call(new AurinkoAccountServiceFilterImpl((ListOnlyAccountService) userId -> List.of(
+                new AurinkoAccount(43, "Salesforce", "user@example.com", true)), List.of("IMAP", "CalDav")), Map.of("accountId", 43));
 
         assertThat(result.isError()).isTrue();
         assertThat(result.content()).containsExactly(new McpSchema.TextContent("Account not found"));

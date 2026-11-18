@@ -56,6 +56,7 @@ Configuration is read from environment variables:
 | `AURINKO_URL` | `https://api.aurinko.io` | Aurinko API base URL; HTTPS required except for localhost, 127.0.0.1 and [::1] |
 | `AURINKO_CLIENT_ID` | Required | Aurinko application's client ID |
 | `AURINKO_CLIENT_SECRET` | Required | Aurinko application's secret in base64url format; omitted from configuration `toString` and never logged |
+| `AURINKO_ACCOUNT_SERVICE_TYPES` | `Google,Office365,iCloud,IMAP,CalDav` | Comma-separated account types visible to tools and available to connect_account; matching account types is case-insensitive |
 | `AURINKO_LOGIN_SERVICE_TYPES` | `Google,Office365` | Comma-separated login providers shown on the page |
 | `AURINKO_LOGIN_SCOPES` | `Mail.Read Calendar.ReadWrite` | Scopes for the primary account used to sign in; without mail and calendar access, tools will return errors on that account |
 | `AURINKO_IMAP_SCOPES` | `Mail.Read` | Scopes requested when connecting an IMAP mailbox |
@@ -435,7 +436,13 @@ descriptions, and locations are excluded from these logs.
 
 ## Connect an IMAP mailbox or CalDAV calendar
 
-Call `connect_account` with required `serviceType` set to `IMAP` or `CalDav`:
+Call `connect_account` with required `serviceType` chosen from
+`AURINKO_ACCOUNT_SERVICE_TYPES` (by default Google, Office365, iCloud, IMAP and CalDav).
+Choose the provider of the user's email address: Outlook.com, Hotmail and Live use
+Office365; @icloud.com, @me.com and @mac.com use iCloud. IMAP and CalDav are fallbacks
+when no listed provider matches.
+
+For example:
 
 ```json
 {"jsonrpc":"2.0","id":8,"method":"tools/call","params":{"name":"connect_account","arguments":{"serviceType":"IMAP"}}}
@@ -449,6 +456,13 @@ and `destructiveHint: false`.
 The user opens this link in a browser, sees the already connected email
 addresses on our confirmation page, and clicks **Continue**. Mailbox or calendar
 credentials are entered on the Aurinko page reached by that link.
+
+`AURINKO_ACCOUNT_SERVICE_TYPES` filters accounts everywhere: account listing,
+mail/calendar tools, disconnection, and connection pages and callbacks. The primary
+sign-in account is hidden if its type is not listed; sign-in then only identifies
+the user. Unknown service types, including CRM types, can be explicitly enabled.
+When connecting, IMAP requests `AURINKO_IMAP_SCOPES`, CalDav requests
+`AURINKO_CALDAV_SCOPES`, and all other allowed types request `AURINKO_LOGIN_SCOPES`.
 
 The connection flow uses:
 

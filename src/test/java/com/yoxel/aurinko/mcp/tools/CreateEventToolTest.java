@@ -2,6 +2,7 @@ package com.yoxel.aurinko.mcp.tools;
 
 import com.yoxel.aurinko.mcp.support.ListOnlyAccountService;
 import com.yoxel.aurinko.mcp.aurinko.AccountAccessValidator;
+import com.yoxel.aurinko.mcp.aurinko.AurinkoAccountServiceFilterImpl;
 import com.yoxel.aurinko.mcp.aurinko.AurinkoAccount;
 import com.yoxel.aurinko.mcp.aurinko.AurinkoAccountService;
 import com.yoxel.aurinko.mcp.aurinko.AurinkoException;
@@ -75,6 +76,16 @@ public class CreateEventToolTest {
         arguments.put("accountId", 43);
 
         assertError(call(accounts, arguments), "Account not found");
+        assertThat(service.getCalls()).isZero();
+    }
+
+    @Test
+    void unsupportedServiceTypeRejectedBeforeServiceCall() {
+        var arguments = arguments();
+        arguments.put("accountId", 43);
+
+        assertError(call(new AurinkoAccountServiceFilterImpl((ListOnlyAccountService) userId -> List.of(
+                new AurinkoAccount(43, "Salesforce", "user@example.com", true)), List.of("IMAP", "CalDav")), arguments), "Account not found");
         assertThat(service.getCalls()).isZero();
     }
 
