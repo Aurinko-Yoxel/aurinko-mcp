@@ -5,12 +5,23 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
 import java.util.Base64;
+import java.nio.file.Path;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 public class ServerConfigTest {
+
+    @Test
+    void optionalToolsFileReadFromEnvironment() {
+        var config = ServerConfig.fromEnvironment(Map.of("TOKEN_KEY", Base64.getEncoder().encodeToString(new byte[32]),
+                "TOOLS_CONFIG_FILE", "/app/custom tools.yaml"));
+
+        assertThat(config.getToolsConfigFile()).isEqualTo(Path.of("/app/custom tools.yaml"));
+        assertThat(ServerConfig.fromEnvironment(Map.of("TOKEN_KEY", Base64.getEncoder().encodeToString(new byte[32])))
+                .getToolsConfigFile()).isNull();
+    }
 
     @ParameterizedTest
     @ValueSource(strings = {"http://localhost", "http://127.0.0.1", "http://[::1]", "https://example.com"})

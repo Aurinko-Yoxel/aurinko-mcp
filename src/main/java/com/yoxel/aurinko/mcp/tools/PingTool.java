@@ -1,11 +1,15 @@
 package com.yoxel.aurinko.mcp.tools;
 
 import io.modelcontextprotocol.server.McpServerFeatures;
+import lombok.RequiredArgsConstructor;
 import io.modelcontextprotocol.spec.McpSchema;
 
 import java.util.Map;
 
+@RequiredArgsConstructor
 public class PingTool implements McpTool {
+
+    private final ToolDescription toolDescription;
 
     @Override
     public McpServerFeatures.SyncToolSpecification specification() {
@@ -14,7 +18,7 @@ public class PingTool implements McpTool {
                                 "type", "object",
                                 "properties", Map.of(),
                                 "additionalProperties", false))
-                        .description("Check that the Aurinko MCP server is running")
+                        .description(toolDescription.getDescription())
                         .annotations(McpSchema.ToolAnnotations.builder().readOnlyHint(true).build())
                         .build())
                 .callHandler((exchange, request) -> McpSchema.CallToolResult.builder()

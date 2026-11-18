@@ -1,5 +1,6 @@
 package com.yoxel.aurinko.mcp.tools;
 
+import com.yoxel.aurinko.mcp.support.TestToolDescriptions;
 import com.yoxel.aurinko.mcp.support.ListOnlyAccountService;
 import com.yoxel.aurinko.mcp.aurinko.AccountAccessValidator;
 import com.yoxel.aurinko.mcp.aurinko.AurinkoAccountServiceFilterImpl;
@@ -132,7 +133,7 @@ public class CreateEventToolTest {
     private McpSchema.CallToolResult call(AurinkoAccountService accountService, Map<String, Object> arguments) {
         var context = McpTransportContext.create(Map.of(BearerAuthFilter.PRINCIPAL_ATTRIBUTE, principal));
         var exchange = new McpSyncServerExchange(new McpAsyncServerExchange("session", null, null, null, context));
-        var tool = new CreateEventTool(new AccountAccessValidator(accountService), service, McpJsonDefaults.getMapper());
+        var tool = new CreateEventTool(new AccountAccessValidator(accountService), service, McpJsonDefaults.getMapper(), TestToolDescriptions.tool("create_event"));
         return tool.specification().callHandler().apply(exchange,
                 McpSchema.CallToolRequest.builder("create_event").arguments(arguments).build());
     }

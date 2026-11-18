@@ -1,5 +1,6 @@
 package com.yoxel.aurinko.mcp.tools;
 
+import com.yoxel.aurinko.mcp.support.TestToolDescriptions;
 import com.yoxel.aurinko.mcp.support.ListOnlyAccountService;
 import com.yoxel.aurinko.mcp.aurinko.AurinkoAccount;
 import com.yoxel.aurinko.mcp.aurinko.AurinkoAccountService;
@@ -74,7 +75,7 @@ public class ListAccountsToolTest {
     private McpSchema.CallToolResult call(AurinkoAccountService service) {
         var context = McpTransportContext.create(Map.of(BearerAuthFilter.PRINCIPAL_ATTRIBUTE, principal));
         var exchange = new McpSyncServerExchange(new McpAsyncServerExchange("session", null, null, null, context));
-        var specification = new ListAccountsTool(service, McpJsonDefaults.getMapper()).specification();
+        var specification = new ListAccountsTool(service, McpJsonDefaults.getMapper(), TestToolDescriptions.tool("list_accounts")).specification();
         return specification.callHandler().apply(exchange, McpSchema.CallToolRequest.builder("list_accounts")
                 .arguments(Map.of("userId", "untrusted-user"))
                 .build());

@@ -18,15 +18,14 @@ public class ListAccountsTool implements McpTool {
 
     private final AurinkoAccountService accountService;
     private final McpJsonMapper jsonMapper;
+    private final ToolDescription toolDescription;
 
     @Override
     public McpServerFeatures.SyncToolSpecification specification() {
         return McpServerFeatures.SyncToolSpecification.builder()
                 .tool(McpSchema.Tool.builder("list_accounts", Map.of(
                                 "type", "object", "properties", Map.of(), "additionalProperties", false))
-                        .description("List mailboxes and calendars connected by the current user. "
-                                + "Only account types supported by this server are shown. "
-                                + "The accountId from this response is used in mail and calendar tools and disconnect_account.")
+                        .description(toolDescription.getDescription())
                         .annotations(McpSchema.ToolAnnotations.builder().readOnlyHint(true).build())
                         .build())
                 .callHandler((exchange, request) -> {

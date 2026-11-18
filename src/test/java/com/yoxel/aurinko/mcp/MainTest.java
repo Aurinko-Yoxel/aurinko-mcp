@@ -21,8 +21,11 @@ import org.eclipse.jetty.server.ServerConnector;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 import java.net.URI;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
@@ -38,7 +41,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 public class MainTest {
 
-    private final ServerConfig config = new ServerConfig("127.0.0.1", 0,
+    private ServerConfig config = new ServerConfig("127.0.0.1", 0,
             "https://mcp.example.com", Base64.getEncoder().encodeToString(new byte[32]));
     private Server server;
     private String baseUrl;
@@ -204,6 +207,30 @@ public class MainTest {
                     .arguments(Map.of("serviceType", "icloud")).build());
             assertThat(result.isError()).isFalse();
             assertThat(((McpSchema.TextContent) result.content().get(0)).text()).contains("accounts/connect?state=");
+        }
+    }
+
+    @Test
+    void descriptionsOverrideDisablesToolAndChangesTexts(@TempDir Path directory) throws Exception {
+        Path file = directory.resolve("tools.yaml");
+        Files.writeString(file, "tools:\n  create_event:\n    enabled: false\n  search_messages:\n"
+                + "    description: Custom search instructions\nserviceTypes:\n  iCloud: Custom Apple instructions\n");
+        server.stop();
+        config = new ServerConfig(config.getHost(), config.getPort(), config.getPublicUrl(),
+                Base64.getEncoder().encodeToString(config.getTokenKey().getEncoded()), file);
+        startServer();
+        var manager = new TokenManagerJweImpl(new JweHelper(config.getTokenKey(), Clock.systemUTC()), config.getMcpUrl());
+        String token = manager.createAccessToken(new McpPrincipal("user-1", "user-session", "client-1"));
+        var transport = HttpClientStreamableHttpTransport.builder(baseUrl).endpoint("/mcp")
+                .requestBuilder(HttpRequest.newBuilder().header("Authorization", "Bearer " + token)).build();
+        try (var client = McpClient.sync(transport).requestTimeout(Duration.ofSeconds(10)).build()) {
+            client.initialize();
+            var tools = client.listTools().tools();
+            assertThat(tools).hasSize(7).extracting(McpSchema.Tool::name).doesNotContain("create_event");
+            assertThat(tools).filteredOn(tool -> "search_messages".equals(tool.name()))
+                    .singleElement().satisfies(tool -> assertThat(tool.description()).isEqualTo("Custom search instructions"));
+            assertThat(tools).filteredOn(tool -> "connect_account".equals(tool.name()))
+                    .singleElement().satisfies(tool -> assertThat(tool.description()).contains("iCloud: Custom Apple instructions"));
         }
     }
 

@@ -50,6 +50,7 @@ Configuration is read from environment variables:
 | --- | --- | --- |
 | `HOST` | `127.0.0.1` | HTTP bind address |
 | `PORT` | `8080` | HTTP port, from 1 to 65535 |
+| `TOOLS_CONFIG_FILE` | Unset | Optional path to a YAML file overriding tool descriptions, parameter descriptions, service type descriptions and enabled tools |
 | `JAVA_OPTS` | `-XX:MaxRAMPercentage=75` | Optional JVM options; applies only in the container |
 | `PUBLIC_URL` | `http://127.0.0.1:<PORT>` | External base URL used for token resource validation and OAuth metadata; HTTPS required except for localhost, 127.0.0.1 and [::1] |
 | `TOKEN_KEY` | Required | Base64-encoded 32-byte AES encryption key; startup fails if absent or invalid |
@@ -118,6 +119,41 @@ allow both return URLs: `<PUBLIC_URL>/oauth/aurinko/callback` and
 
 Configure the platform's health check to use `GET /health` on port 3000. It needs
 no token and returns HTTP 200 with `{"status":"ok"}` without contacting Aurinko.
+
+## Override tool descriptions
+
+Default tool and parameter descriptions and service type hints are bundled in
+`src/main/resources/tools.yaml`. Set `TOOLS_CONFIG_FILE` to a custom YAML file to
+override selected fields without rebuilding the server. The file is loaded once
+at startup; restart the server after changing it. Fields and parameters omitted
+from the file retain their defaults. For example:
+
+```yaml
+tools:
+  search_messages:
+    description: >-
+      Search the selected mailbox. Prefer a narrow date range and sender filter.
+  create_event:
+    enabled: false
+serviceTypes:
+  iCloud: >-
+    Apple iCloud Mail and Calendar; ask the user to prepare an Apple app-specific password.
+```
+
+Use `parameters` under a tool to override individual parameter descriptions.
+Unknown tools or parameters, empty descriptions, invalid YAML and missing or
+unreadable files cause startup to fail. Service type keys may include custom
+Aurinko providers. Disabled tools are absent from `tools/list`; argument types,
+required fields, allowed values, annotations and tool behavior stay defined in Java.
+
+For Docker or Coolify, mount the file into the container and set
+`TOOLS_CONFIG_FILE` to its container path. For example, add these options to
+`docker run` along with the required runtime variables:
+
+```sh
+--mount type=bind,src="$PWD/custom-tools.yaml",dst=/app/custom-tools.yaml,readonly \
+-e TOOLS_CONFIG_FILE=/app/custom-tools.yaml
+```
 
 ## Aurinko application setup
 

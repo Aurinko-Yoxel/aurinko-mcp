@@ -22,13 +22,12 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class ConnectAccountTool implements McpTool {
 
-    private static final String SELECTION_RULE = "Choose serviceType by the provider of the user's email address. "
-            + "Use IMAP or CalDav only when no other listed type matches the provider.";
-
     private final ConnectStateManager stateManager;
     private final ServerConfig config;
     private final McpJsonMapper jsonMapper;
     private final List<String> allowedServiceTypes;
+    private final ServiceTypeCatalog serviceTypeCatalog;
+    private final ToolDescription toolDescription;
 
     @Override
     public McpServerFeatures.SyncToolSpecification specification() {
@@ -36,7 +35,7 @@ public class ConnectAccountTool implements McpTool {
                 .tool(McpSchema.Tool.builder("connect_account", Map.of(
                                 "type", "object", "additionalProperties", false,
                                 "required", List.of("serviceType"), "properties", Map.of("serviceType",
-                                        Map.of("type", "string", "enum", allowedServiceTypes, "description", SELECTION_RULE))))
+                                        Map.of("type", "string", "enum", allowedServiceTypes, "description", toolDescription.parameter("serviceType")))))
                         .description(description())
                         .annotations(McpSchema.ToolAnnotations.builder().readOnlyHint(false).destructiveHint(false).build())
                         .build())
@@ -66,10 +65,10 @@ public class ConnectAccountTool implements McpTool {
     }
 
     private String description() {
-        String types = allowedServiceTypes.stream().map(type -> type + ": " + ServiceTypeCatalog.describe(type))
+        String types = allowedServiceTypes.stream().map(type -> type + ": " + serviceTypeCatalog.describe(type))
                 .collect(java.util.stream.Collectors.joining("\n"));
-        return "Get a link that the user must open in a browser to connect another mailbox or calendar.\n"
-                + types + "\n" + SELECTION_RULE;
+        return toolDescription.getDescription() + "\n"
+                + types + "\n" + toolDescription.parameter("serviceType");
     }
 
 }

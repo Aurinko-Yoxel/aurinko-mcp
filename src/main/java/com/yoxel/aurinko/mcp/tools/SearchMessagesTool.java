@@ -26,6 +26,7 @@ public class SearchMessagesTool implements McpTool {
     private final AccountAccessValidator accessValidator;
     private final AurinkoEmailService emailService;
     private final McpJsonMapper jsonMapper;
+    private final ToolDescription toolDescription;
 
     @Override
     public McpServerFeatures.SyncToolSpecification specification() {
@@ -34,12 +35,11 @@ public class SearchMessagesTool implements McpTool {
                                 "type", "object", "additionalProperties", false,
                                 "required", List.of("accountId"),
                                 "properties", Map.of(
-                                        "accountId", Map.of("type", "integer"),
-                                        "query", Map.of("type", "string", "description",
-                                                "Search query, for example: from:someone@example.com after:01/01/2026"),
+                                        "accountId", Map.of("type", "integer", "description", toolDescription.parameter("accountId")),
+                                        "query", Map.of("type", "string", "description", toolDescription.parameter("query")),
                                         "limit", Map.of("type", "integer", "minimum", MIN_LIMIT,
-                                                "maximum", MAX_LIMIT, "default", DEFAULT_LIMIT))))
-                        .description("Search email messages in one of the user's connected accounts")
+                                                "maximum", MAX_LIMIT, "default", DEFAULT_LIMIT, "description", toolDescription.parameter("limit")))))
+                        .description(toolDescription.getDescription())
                         .annotations(McpSchema.ToolAnnotations.builder().readOnlyHint(true).build())
                         .build())
                 .callHandler((exchange, request) -> {

@@ -22,6 +22,7 @@ public class DisconnectAccountTool implements McpTool {
     private final AccountAccessValidator accessValidator;
     private final AurinkoAccountService accountService;
     private final McpJsonMapper jsonMapper;
+    private final ToolDescription toolDescription;
 
     @Override
     public McpServerFeatures.SyncToolSpecification specification() {
@@ -29,10 +30,8 @@ public class DisconnectAccountTool implements McpTool {
                 .tool(McpSchema.Tool.builder("disconnect_account", Map.of(
                                 "type", "object", "additionalProperties", false,
                                 "required", List.of("accountId"),
-                                "properties", Map.of("accountId", Map.of("type", "integer"))))
-                        .description("Disconnect a mailbox or calendar irreversibly. "
-                                + "The account must be connected again through connect_account to use it again. "
-                                + "The account used to sign in cannot be disconnected.")
+                                "properties", Map.of("accountId", Map.of("type", "integer", "description", toolDescription.parameter("accountId")))))
+                        .description(toolDescription.getDescription())
                         .annotations(McpSchema.ToolAnnotations.builder().readOnlyHint(false)
                                 .destructiveHint(true).idempotentHint(false).build())
                         .build())

@@ -28,6 +28,7 @@ public class ListEventsTool implements McpTool {
     private final AccountAccessValidator accessValidator;
     private final AurinkoCalendarService calendarService;
     private final McpJsonMapper jsonMapper;
+    private final ToolDescription toolDescription;
 
     @Override
     public McpServerFeatures.SyncToolSpecification specification() {
@@ -36,13 +37,13 @@ public class ListEventsTool implements McpTool {
                                 "type", "object", "additionalProperties", false,
                                 "required", List.of("accountId", "timeMin", "timeMax"),
                                 "properties", Map.of(
-                                        "accountId", Map.of("type", "integer"),
-                                        "calendarId", Map.of("type", "string"),
-                                        "timeMin", Map.of("type", "string", "description", "ISO-8601 date-time with offset"),
-                                        "timeMax", Map.of("type", "string", "description", "ISO-8601 date-time with offset"),
+                                        "accountId", Map.of("type", "integer", "description", toolDescription.parameter("accountId")),
+                                        "calendarId", Map.of("type", "string", "description", toolDescription.parameter("calendarId")),
+                                        "timeMin", Map.of("type", "string", "description", toolDescription.parameter("timeMin")),
+                                        "timeMax", Map.of("type", "string", "description", toolDescription.parameter("timeMax")),
                                         "limit", Map.of("type", "integer", "minimum", MIN_LIMIT,
-                                                "maximum", MAX_LIMIT, "default", DEFAULT_LIMIT))))
-                        .description("List calendar events in a time range for one of the user's connected accounts")
+                                                "maximum", MAX_LIMIT, "default", DEFAULT_LIMIT, "description", toolDescription.parameter("limit")))))
+                        .description(toolDescription.getDescription())
                         .annotations(McpSchema.ToolAnnotations.builder().readOnlyHint(true).build())
                         .build())
                 .callHandler((exchange, request) -> {

@@ -1,5 +1,6 @@
 package com.yoxel.aurinko.mcp.tools;
 
+import com.yoxel.aurinko.mcp.support.TestToolDescriptions;
 import com.yoxel.aurinko.mcp.support.ListOnlyAccountService;
 import ch.qos.logback.classic.Logger;
 import ch.qos.logback.classic.spi.ILoggingEvent;
@@ -133,7 +134,7 @@ public class SearchMessagesToolTest {
     private McpSchema.CallToolResult call(AurinkoAccountService accountService, Map<String, Object> arguments) {
         var context = McpTransportContext.create(Map.of(BearerAuthFilter.PRINCIPAL_ATTRIBUTE, principal));
         var exchange = new McpSyncServerExchange(new McpAsyncServerExchange("session", null, null, null, context));
-        var tool = new SearchMessagesTool(new AccountAccessValidator(accountService), emailService, McpJsonDefaults.getMapper());
+        var tool = new SearchMessagesTool(new AccountAccessValidator(accountService), emailService, McpJsonDefaults.getMapper(), TestToolDescriptions.tool("search_messages"));
         return tool.specification().callHandler().apply(exchange,
                 McpSchema.CallToolRequest.builder("search_messages").arguments(arguments).build());
     }

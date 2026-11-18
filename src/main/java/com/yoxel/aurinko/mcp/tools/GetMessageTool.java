@@ -22,6 +22,7 @@ public class GetMessageTool implements McpTool {
     private final AccountAccessValidator accessValidator;
     private final AurinkoEmailService emailService;
     private final McpJsonMapper jsonMapper;
+    private final ToolDescription toolDescription;
 
     @Override
     public McpServerFeatures.SyncToolSpecification specification() {
@@ -29,9 +30,9 @@ public class GetMessageTool implements McpTool {
                 .tool(McpSchema.Tool.builder("get_message", Map.of(
                                 "type", "object", "additionalProperties", false,
                                 "required", List.of("accountId", "messageId"),
-                                "properties", Map.of("accountId", Map.of("type", "integer"),
-                                        "messageId", Map.of("type", "string", "minLength", 1))))
-                        .description("Read one email message by id")
+                                "properties", Map.of("accountId", Map.of("type", "integer", "description", toolDescription.parameter("accountId")),
+                                        "messageId", Map.of("type", "string", "minLength", 1, "description", toolDescription.parameter("messageId")))))
+                        .description(toolDescription.getDescription())
                         .annotations(McpSchema.ToolAnnotations.builder().readOnlyHint(true).build())
                         .build())
                 .callHandler((exchange, request) -> {

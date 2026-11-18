@@ -1,5 +1,6 @@
 package com.yoxel.aurinko.mcp.tools;
 
+import com.yoxel.aurinko.mcp.support.TestToolDescriptions;
 import ch.qos.logback.classic.Logger;
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
@@ -35,7 +36,7 @@ public class DisconnectAccountToolTest {
     private final McpPrincipal principal = new McpPrincipal("user-1", "private-session", "client-1");
     private final AccountService accountService = new AccountService();
     private final DisconnectAccountTool tool = new DisconnectAccountTool(new AccountAccessValidator(new AurinkoAccountServiceFilterImpl(accountService, List.of("IMAP", "CalDav"))),
-            accountService, McpJsonDefaults.getMapper());
+            accountService, McpJsonDefaults.getMapper(), TestToolDescriptions.tool("disconnect_account"));
 
     @ParameterizedTest
     @ValueSource(booleans = {true, false})

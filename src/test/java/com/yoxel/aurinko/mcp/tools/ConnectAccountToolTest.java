@@ -1,5 +1,6 @@
 package com.yoxel.aurinko.mcp.tools;
 
+import com.yoxel.aurinko.mcp.support.TestToolDescriptions;
 import com.yoxel.aurinko.mcp.accounts.ConnectStateManagerJweImpl;
 import com.yoxel.aurinko.mcp.auth.BearerAuthFilter;
 import com.yoxel.aurinko.mcp.auth.McpPrincipal;
@@ -74,7 +75,7 @@ public class ConnectAccountToolTest {
     @Test
     void schemaAndDescriptionUseConfiguredTypes() {
         var specification = new ConnectAccountTool(manager, config, McpJsonDefaults.getMapper(),
-                List.of("Office365", "iCloud", "Salesforce")).specification();
+                List.of("Office365", "iCloud", "Salesforce"), TestToolDescriptions.catalog(), TestToolDescriptions.tool("connect_account")).specification();
         var properties = (Map<?, ?>) specification.tool().inputSchema().get("properties");
         var parameter = (Map<?, ?>) properties.get("serviceType");
         assertThat(parameter.get("enum")).isEqualTo(List.of("Office365", "iCloud", "Salesforce"));
@@ -85,7 +86,7 @@ public class ConnectAccountToolTest {
 
     @Test
     void imapAndCaldavConfigurationRestrictsOtherProviders() {
-        var tool = new ConnectAccountTool(manager, config, McpJsonDefaults.getMapper(), List.of("IMAP", "CalDav"));
+        var tool = new ConnectAccountTool(manager, config, McpJsonDefaults.getMapper(), List.of("IMAP", "CalDav"), TestToolDescriptions.catalog(), TestToolDescriptions.tool("connect_account"));
         var result = tool.specification().callHandler().apply(exchange(),
                 McpSchema.CallToolRequest.builder("connect_account").arguments(Map.of("serviceType", "Office365")).build());
         assertThat(result.isError()).isTrue();
@@ -98,7 +99,7 @@ public class ConnectAccountToolTest {
 
     private McpSchema.CallToolResult call(Map<String, Object> arguments) {
         return new ConnectAccountTool(manager, config, McpJsonDefaults.getMapper(),
-                List.of("Google", "Office365", "iCloud", "IMAP", "CalDav")).specification().callHandler()
+                List.of("Google", "Office365", "iCloud", "IMAP", "CalDav"), TestToolDescriptions.catalog(), TestToolDescriptions.tool("connect_account")).specification().callHandler()
                 .apply(exchange(), McpSchema.CallToolRequest.builder("connect_account").arguments(arguments).build());
     }
     private McpSyncServerExchange exchange() {

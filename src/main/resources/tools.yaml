@@ -1,0 +1,59 @@
+tools:
+  ping:
+    enabled: true
+    description: "Check that the Aurinko MCP server is running"
+    parameters: {}
+  list_accounts:
+    enabled: true
+    description: "List mailboxes and calendars connected by the current user. Only account types supported by this server are shown. The accountId from this response is used in mail and calendar tools and disconnect_account."
+    parameters: {}
+  search_messages:
+    enabled: true
+    description: "Search email messages in one of the user's connected accounts"
+    parameters:
+      accountId: "Account ID from list_accounts."
+      query: "Search query, for example: from:someone@example.com after:01/01/2026"
+      limit: "Maximum number of messages to return."
+  get_message:
+    enabled: true
+    description: "Read one email message by id"
+    parameters:
+      accountId: "Account ID from list_accounts."
+      messageId: "ID of the email message to read."
+  list_events:
+    enabled: true
+    description: "List calendar events in a time range for one of the user's connected accounts"
+    parameters:
+      accountId: "Account ID from list_accounts."
+      calendarId: "Calendar ID; omit to use the default calendar."
+      timeMin: "ISO-8601 date-time with offset"
+      timeMax: "ISO-8601 date-time with offset"
+      limit: "Maximum number of events to return."
+  create_event:
+    enabled: true
+    description: "Create a calendar event in one of the user's connected accounts"
+    parameters:
+      accountId: "Account ID from list_accounts."
+      calendarId: "Calendar ID; omit to use the default calendar."
+      subject: "Event subject."
+      start: "ISO-8601 date-time with offset"
+      end: "ISO-8601 date-time with offset"
+      description: "Event description."
+      location: "Event location."
+  connect_account:
+    enabled: true
+    description: "Get a link that the user must open in a browser to connect another mailbox or calendar."
+    parameters:
+      serviceType: "Choose serviceType by the provider of the user's email address. Use IMAP or CalDav only when no other listed type matches the provider."
+  disconnect_account:
+    enabled: true
+    description: "Disconnect a mailbox or calendar irreversibly. The account must be connected again through connect_account to use it again. The account used to sign in cannot be disconnected."
+    parameters:
+      accountId: "Account ID from list_accounts."
+serviceTypes:
+  Google: "Gmail and Google Calendar, including Google Workspace; the user signs in with Google."
+  Office365: "Microsoft 365, Outlook.com, Hotmail and Live mail and calendar; the user signs in with Microsoft."
+  iCloud: "Apple iCloud Mail and Calendar (@icloud.com, @me.com, @mac.com); the user enters an Apple app-specific password."
+  IMAP: "any other mailbox by IMAP (Yahoo, Zoho, internet provider mailboxes); the user enters the email and password or an app password."
+  CalDav: "any other calendar by CalDAV server URL; the user enters the server URL, login and password."
+  EWS: "Microsoft Exchange on-premises through EWS."

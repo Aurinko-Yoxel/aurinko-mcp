@@ -23,6 +23,7 @@ public class CreateEventTool implements McpTool {
     private final AccountAccessValidator accessValidator;
     private final AurinkoCalendarService calendarService;
     private final McpJsonMapper jsonMapper;
+    private final ToolDescription toolDescription;
 
     @Override
     public McpServerFeatures.SyncToolSpecification specification() {
@@ -31,14 +32,14 @@ public class CreateEventTool implements McpTool {
                                 "type", "object", "additionalProperties", false,
                                 "required", List.of("accountId", "subject", "start", "end"),
                                 "properties", Map.of(
-                                        "accountId", Map.of("type", "integer"),
-                                        "calendarId", Map.of("type", "string"),
-                                        "subject", Map.of("type", "string", "minLength", 1),
-                                        "start", Map.of("type", "string", "description", "ISO-8601 date-time with offset"),
-                                        "end", Map.of("type", "string", "description", "ISO-8601 date-time with offset"),
-                                        "description", Map.of("type", "string"),
-                                        "location", Map.of("type", "string"))))
-                        .description("Create a calendar event in one of the user's connected accounts")
+                                        "accountId", Map.of("type", "integer", "description", toolDescription.parameter("accountId")),
+                                        "calendarId", Map.of("type", "string", "description", toolDescription.parameter("calendarId")),
+                                        "subject", Map.of("type", "string", "minLength", 1, "description", toolDescription.parameter("subject")),
+                                        "start", Map.of("type", "string", "description", toolDescription.parameter("start")),
+                                        "end", Map.of("type", "string", "description", toolDescription.parameter("end")),
+                                        "description", Map.of("type", "string", "description", toolDescription.parameter("description")),
+                                        "location", Map.of("type", "string", "description", toolDescription.parameter("location")))))
+                        .description(toolDescription.getDescription())
                         .annotations(McpSchema.ToolAnnotations.builder().readOnlyHint(false).destructiveHint(false).build())
                         .build())
                 .callHandler((exchange, request) -> {

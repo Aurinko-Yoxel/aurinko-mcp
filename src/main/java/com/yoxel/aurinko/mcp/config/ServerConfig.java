@@ -6,6 +6,7 @@ import lombok.Value;
 import javax.crypto.SecretKey;
 import javax.crypto.spec.SecretKeySpec;
 import java.net.URI;
+import java.nio.file.Path;
 import java.util.Base64;
 import java.util.Map;
 
@@ -15,10 +16,16 @@ public class ServerConfig {
     String host;
     int port;
     String publicUrl;
+    Path toolsConfigFile;
     @ToString.Exclude
     SecretKey tokenKey;
 
     public ServerConfig(String host, int port, String publicUrl, String tokenKey) {
+        this(host, port, publicUrl, tokenKey, null);
+    }
+
+    public ServerConfig(String host, int port, String publicUrl, String tokenKey, Path toolsConfigFile) {
+        this.toolsConfigFile = toolsConfigFile;
         this.host = host;
         this.port = port;
         this.publicUrl = normalizePublicUrl(publicUrl);
@@ -83,8 +90,10 @@ public class ServerConfig {
             throw new IllegalArgumentException("PORT must be an integer between 1 and 65535");
         }
 
+        String toolsFile = environment.get("TOOLS_CONFIG_FILE");
+        Path toolsConfigFile = toolsFile == null || toolsFile.isBlank() ? null : Path.of(toolsFile.trim());
         return new ServerConfig(host, port,
                 environment.getOrDefault("PUBLIC_URL", "http://127.0.0.1:" + port),
-                environment.get("TOKEN_KEY"));
+                environment.get("TOKEN_KEY"), toolsConfigFile);
     }
 }

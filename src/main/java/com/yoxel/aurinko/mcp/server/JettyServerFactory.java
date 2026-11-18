@@ -2,6 +2,7 @@ package com.yoxel.aurinko.mcp.server;
 
 import com.yoxel.aurinko.mcp.config.AurinkoConfig;
 import com.yoxel.aurinko.mcp.config.ServerConfig;
+import com.yoxel.aurinko.mcp.tools.ToolDescriptionsLoaderYamlImpl;
 import io.modelcontextprotocol.json.McpJsonDefaults;
 import lombok.extern.slf4j.Slf4j;
 import org.eclipse.jetty.ee11.servlet.ServletContextHandler;
@@ -19,11 +20,12 @@ public class JettyServerFactory {
     }
 
     public static Server create(ServerConfig config, AurinkoConfig aurinkoConfig, AurinkoComponents aurinko) {
+        var descriptions = new ToolDescriptionsLoaderYamlImpl().load(config.getToolsConfigFile());
         var clock = Clock.systemUTC();
         var oauth = OAuthComponents.create(config, aurinkoConfig, clock);
         var jsonMapper = McpJsonDefaults.getMapper();
         var transport = McpServerFactory.createTransport(jsonMapper);
-        var tools = McpToolsFactory.create(aurinko, oauth, config, aurinkoConfig, jsonMapper);
+        var tools = McpToolsFactory.create(aurinko, oauth, config, aurinkoConfig, jsonMapper, descriptions);
         var mcpServer = McpServerFactory.create(transport, tools);
 
         Server server = new Server();
