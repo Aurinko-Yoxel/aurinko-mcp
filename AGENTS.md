@@ -53,7 +53,8 @@ Root package: `com.yoxel.aurinko.mcp`
 - Implement `tools/McpTool` in a new class and register it in `server/McpToolsFactory`.
 - Read arguments with `ToolArguments`; invalid input throws `InvalidArgumentException`.
 - Build results with `ToolResultHelper`; log failures with `ToolErrorLogger`.
-- Any tool that takes an `accountId` must call `AccountAccessValidator.validate` before using it.
+- Any tool that takes an `accountId` must call `AccountAccessValidator`: `validate` for reading or writing
+  account data, `validateOwnership` for actions on the account itself.
 - Set `ToolAnnotations` honestly: `readOnlyHint` for tools that only read.
 - Limit the size of what a tool returns (page size, body length).
 

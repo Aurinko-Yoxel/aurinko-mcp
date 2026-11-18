@@ -2,21 +2,57 @@ package com.yoxel.aurinko.mcp.aurinko;
 
 import com.sun.net.httpserver.HttpServer;
 import com.yoxel.aurinko.AurinkoService;
+import com.yoxel.aurinko.mcp.support.FakeAurinkoServer;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 import java.net.InetSocketAddress;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.Arrays;
+import java.util.Base64;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.jupiter.api.Assertions.assertTimeoutPreemptively;
 
 public class AurinkoAccountServiceImplTest {
+
+    @Test
+    void deleteUsesUserAccountPathAndAppAuthentication() throws Exception {
+        try (var fake = new FakeAurinkoServer();
+                var client = AurinkoService.createWithAppAuth(fake.getUrl(), "app-client", "app-secret")) {
+            fake.respond(200, "{}");
+            var service = new AurinkoAccountServiceImpl(client);
+
+            service.deleteAccount("user-1", 42);
+
+            assertThat(fake.getRequests()).isEqualTo(1);
+            assertThat(fake.getMethod()).isEqualTo("DELETE");
+            assertThat(fake.getPath()).isEqualTo("/v1/users/user-1/accounts/42");
+            assertThat(fake.getAuthorization()).isEqualTo("Basic " + Base64.getEncoder().encodeToString(
+                    "app-client:app-secret".getBytes(StandardCharsets.UTF_8)));
+        }
+    }
+
+    @ParameterizedTest
+    @ValueSource(ints = {404, 500})
+    void deleteErrorPreservesHttpStatus(int status) throws Exception {
+        try (var fake = new FakeAurinkoServer();
+                var client = AurinkoService.createWithAppAuth(fake.getUrl(), "app-client", "app-secret")) {
+            fake.respond(status, "{\"code\":\"error\",\"message\":\"Private upstream error\"}");
+            var service = new AurinkoAccountServiceImpl(client);
+
+            assertThatThrownBy(() -> service.deleteAccount("user-1", 42))
+                    .isInstanceOfSatisfying(AurinkoException.class,
+                            error -> assertThat(error.getStatusCode()).isEqualTo(status));
+        }
+    }
 
     @Test
     void emptyPageStopsLoadingEvenWhenNotDone() throws Exception {

@@ -1,5 +1,6 @@
 package com.yoxel.aurinko.mcp.accounts;
 
+import com.yoxel.aurinko.mcp.support.ListOnlyAccountService;
 import ch.qos.logback.classic.Logger;
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
@@ -24,7 +25,7 @@ public class ConnectCallbackServletTest {
     @Test
     void matchingUserCompletesConnectionAndDeletesCookie() throws Exception {
         var calls = new AtomicInteger();
-        try (var server = new ConnectServletTestServer(userId -> List.of(), code -> {
+        try (var server = new ConnectServletTestServer((ListOnlyAccountService) userId -> List.of(), code -> {
             assertThat(code).isEqualTo("provider-code");
             calls.incrementAndGet();
             return new AurinkoLogin("user-1", "private-session", 42);
@@ -44,7 +45,7 @@ public class ConnectCallbackServletTest {
     @ValueSource(strings = {"missing", "wrong"})
     void missingOrMismatchedCookieRejected(String kind) throws Exception {
         var calls = new AtomicInteger();
-        try (var server = new ConnectServletTestServer(userId -> List.of(), code -> {
+        try (var server = new ConnectServletTestServer((ListOnlyAccountService) userId -> List.of(), code -> {
             calls.incrementAndGet();
             return new AurinkoLogin("user-1", "private-session", 42);
         })) {
@@ -61,7 +62,7 @@ public class ConnectCallbackServletTest {
 
     @Test
     void corruptedStateRejected() throws Exception {
-        try (var server = new ConnectServletTestServer(userId -> List.of(), code -> {
+        try (var server = new ConnectServletTestServer((ListOnlyAccountService) userId -> List.of(), code -> {
             throw new AssertionError("Invalid state must not exchange a code");
         })) {
             var response = server.get(path("corrupted", "success", "provider-code"), null);
@@ -74,7 +75,7 @@ public class ConnectCallbackServletTest {
     @ParameterizedTest
     @ValueSource(strings = {"providerError", "missingCode"})
     void providerErrorOrMissingCodeReturnsFailure(String kind) throws Exception {
-        try (var server = new ConnectServletTestServer(userId -> List.of(), code -> {
+        try (var server = new ConnectServletTestServer((ListOnlyAccountService) userId -> List.of(), code -> {
             throw new AssertionError("Provider failure must not exchange a code");
         })) {
             String state = server.getStateManager().createState("user-1", "CalDav");
@@ -94,7 +95,7 @@ public class ConnectCallbackServletTest {
         var appender = new ListAppender<ILoggingEvent>();
         appender.start();
         logger.addAppender(appender);
-        try (var server = new ConnectServletTestServer(userId -> List.of(),
+        try (var server = new ConnectServletTestServer((ListOnlyAccountService) userId -> List.of(),
                 code -> new AurinkoLogin("other-user", "private-session", 42))) {
             String state = server.getStateManager().createState("user-1", "IMAP");
 
@@ -112,7 +113,7 @@ public class ConnectCallbackServletTest {
 
     @Test
     void aurinkoFailureReturnsFailurePage() throws Exception {
-        try (var server = new ConnectServletTestServer(userId -> List.of(), code -> {
+        try (var server = new ConnectServletTestServer((ListOnlyAccountService) userId -> List.of(), code -> {
             throw new AurinkoException();
         })) {
             String state = server.getStateManager().createState("user-1", "IMAP");

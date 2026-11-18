@@ -5,8 +5,8 @@ users connect an IMAP mailbox and a CalDAV calendar and work with them from MCP
 clients such as ChatGPT, Claude, and Gemini.
 
 The current implementation provides a Streamable HTTP endpoint at `/mcp` with
-seven tools: `ping`, `list_accounts`, `search_messages`, `get_message`, `list_events`,
-`create_event`, and `connect_account`.
+eight tools: `ping`, `list_accounts`, `search_messages`, `get_message`, `list_events`,
+`create_event`, `connect_account`, and `disconnect_account`.
 `ping` returns `pong`; `list_accounts` lists the current user's connected
 mailboxes and calendars. Both accept an empty object. The mail tools search and
 read messages in a selected account. The calendar tools list events over a time
@@ -428,6 +428,29 @@ or nonce receives HTTP 400. Provider cancellation, an exchange error, or a
 different user ID from Aurinko produces the failure page without exposing user
 data in error logs. On success, the page says **Account connected. You can return
 to the chat.** The user can then call `list_accounts` again.
+
+## Disconnect an account
+
+Choose an account ID from `list_accounts` and call `disconnect_account`:
+
+```json
+{"jsonrpc":"2.0","id":9,"method":"tools/call","params":{"name":"disconnect_account","arguments":{"accountId":42}}}
+```
+
+The result is text containing JSON:
+
+```json
+{"accountId":42,"disconnected":true}
+```
+
+The tool verifies that the account belongs to the current user before deleting
+it through Aurinko. Both active and inactive additional accounts can be removed.
+Disconnection is irreversible: use `connect_account` to connect the account again.
+The account used to sign in cannot be removed. If Aurinko returns HTTP 404, the
+result is an error: `This account cannot be disconnected. The account used to sign in cannot be removed.`
+Other Aurinko failures return `Unable to disconnect the account.`
+The tool advertises `readOnlyHint: false`, `destructiveHint: true`, and
+`idempotentHint: false`.
 
 ## Project layout
 

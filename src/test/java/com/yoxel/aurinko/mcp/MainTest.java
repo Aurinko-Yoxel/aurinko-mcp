@@ -1,5 +1,6 @@
 package com.yoxel.aurinko.mcp;
 
+import com.yoxel.aurinko.mcp.support.ListOnlyAccountService;
 import com.yoxel.aurinko.AurinkoService;
 import com.yoxel.aurinko.mcp.accounts.ConnectStateManagerJweImpl;
 import com.yoxel.aurinko.mcp.aurinko.AurinkoAccount;
@@ -48,7 +49,7 @@ public class MainTest {
                 "AURINKO_CLIENT_ID", "app-client", "AURINKO_CLIENT_SECRET", "app-secret"));
         var aurinkoService = AurinkoService.createWithAppAuth(aurinkoConfig.getUrl(),
                 aurinkoConfig.getClientId(), aurinkoConfig.getClientSecret());
-        var aurinko = AurinkoComponents.create(aurinkoConfig, aurinkoService, userId -> {
+        var aurinko = AurinkoComponents.create(aurinkoConfig, aurinkoService, (ListOnlyAccountService) userId -> {
             accountUserId.set(userId);
             return List.of(new AurinkoAccount(42, "IMAP", "user@example.com", true));
         });
@@ -83,10 +84,15 @@ public class MainTest {
 
             var tools = client.listTools().tools();
             assertThat(tools).extracting(McpSchema.Tool::name).containsExactlyInAnyOrder(
-                    "ping", "list_accounts", "search_messages", "get_message", "list_events", "create_event", "connect_account");
+                    "ping", "list_accounts", "search_messages", "get_message", "list_events", "create_event", "connect_account", "disconnect_account");
+            assertThat(tools).hasSize(8);
             for (var tool : tools) {
                 assertThat(tool.annotations()).isNotNull();
-                if (List.of("create_event", "connect_account").contains(tool.name())) {
+                if ("disconnect_account".equals(tool.name())) {
+                    assertThat(tool.annotations().readOnlyHint()).isFalse();
+                    assertThat(tool.annotations().destructiveHint()).isTrue();
+                    assertThat(tool.annotations().idempotentHint()).isFalse();
+                } else if (List.of("create_event", "connect_account").contains(tool.name())) {
                     assertThat(tool.annotations().readOnlyHint()).isFalse();
                     assertThat(tool.annotations().destructiveHint()).isFalse();
                 } else {

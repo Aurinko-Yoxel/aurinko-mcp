@@ -3,6 +3,7 @@ package com.yoxel.aurinko.mcp.server;
 import com.yoxel.aurinko.mcp.config.ServerConfig;
 import com.yoxel.aurinko.mcp.tools.ConnectAccountTool;
 import com.yoxel.aurinko.mcp.tools.CreateEventTool;
+import com.yoxel.aurinko.mcp.tools.DisconnectAccountTool;
 import com.yoxel.aurinko.mcp.tools.GetMessageTool;
 import com.yoxel.aurinko.mcp.tools.ListAccountsTool;
 import com.yoxel.aurinko.mcp.tools.ListEventsTool;
@@ -26,6 +27,7 @@ public class McpToolsFactory {
                 new GetMessageTool(validator, aurinko.getEmailService(), jsonMapper),
                 new ListEventsTool(validator, aurinko.getCalendarService(), jsonMapper),
                 new CreateEventTool(validator, aurinko.getCalendarService(), jsonMapper),
-                new ConnectAccountTool(oauth.getConnectStateManager(), config, jsonMapper));
+                new ConnectAccountTool(oauth.getConnectStateManager(), config, jsonMapper),
+                new DisconnectAccountTool(validator, aurinko.getAccountService(), jsonMapper));
     }
 }

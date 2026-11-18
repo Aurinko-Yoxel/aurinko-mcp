@@ -1,5 +1,6 @@
 package com.yoxel.aurinko.mcp.tools;
 
+import com.yoxel.aurinko.mcp.support.ListOnlyAccountService;
 import com.yoxel.aurinko.mcp.aurinko.AurinkoAccount;
 import com.yoxel.aurinko.mcp.aurinko.AurinkoAccountService;
 import com.yoxel.aurinko.mcp.aurinko.AurinkoException;
@@ -24,7 +25,7 @@ public class ListAccountsToolTest {
 
     @Test
     void accountsReturnedForAuthenticatedUser() throws Exception {
-        AurinkoAccountService service = userId -> {
+        AurinkoAccountService service = (ListOnlyAccountService) userId -> {
             assertThat(userId).isEqualTo(principal.getUserId());
             return List.of(new AurinkoAccount(42, "IMAP", "user@example.com", true),
                     new AurinkoAccount(43, "CalDAV", "calendar@example.com", false));
@@ -45,7 +46,7 @@ public class ListAccountsToolTest {
 
     @Test
     void emptyAccountsReturnedAsEmptyArray() {
-        var result = call(userId -> List.of());
+        var result = call((ListOnlyAccountService) userId -> List.of());
 
         assertThat(result.isError()).isFalse();
         assertThat(result.content()).containsExactly(new McpSchema.TextContent("[]"));
@@ -53,7 +54,7 @@ public class ListAccountsToolTest {
 
     @Test
     void aurinkoFailureReturnedWithoutDetails() {
-        var result = call(userId -> {
+        var result = call((ListOnlyAccountService) userId -> {
             throw new AurinkoException(new IllegalStateException("Private upstream error details"));
         });
 

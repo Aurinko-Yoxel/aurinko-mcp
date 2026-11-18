@@ -1,5 +1,6 @@
 package com.yoxel.aurinko.mcp.tools;
 
+import com.yoxel.aurinko.mcp.support.ListOnlyAccountService;
 import com.yoxel.aurinko.mcp.aurinko.AccountAccessValidator;
 import com.yoxel.aurinko.mcp.aurinko.AurinkoAccount;
 import com.yoxel.aurinko.mcp.aurinko.AurinkoAccountService;
@@ -28,7 +29,7 @@ public class ListEventsToolTest {
 
     private final McpPrincipal principal = new McpPrincipal("user-1", "private-session", "client-1");
     private final FakeAurinkoCalendarService service = new FakeAurinkoCalendarService();
-    private final AurinkoAccountService accounts = userId -> {
+    private final AurinkoAccountService accounts = (ListOnlyAccountService) userId -> {
         assertThat(userId).isEqualTo(principal.getUserId());
         return List.of(new AurinkoAccount(42, "CalDAV", "user@example.com", true));
     };
@@ -84,7 +85,7 @@ public class ListEventsToolTest {
     void aurinkoFailureReturned(String operation) {
         AurinkoAccountService source = accounts;
         if ("accounts".equals(operation)) {
-            source = userId -> {
+            source = (ListOnlyAccountService) userId -> {
                 throw new AurinkoException();
             };
         } else {

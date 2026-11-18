@@ -1,5 +1,6 @@
 package com.yoxel.aurinko.mcp.tools;
 
+import com.yoxel.aurinko.mcp.support.ListOnlyAccountService;
 import ch.qos.logback.classic.Logger;
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
@@ -31,7 +32,7 @@ public class SearchMessagesToolTest {
 
     private final McpPrincipal principal = new McpPrincipal("user-1", "private-user-session", "client-1");
     private final FakeAurinkoEmailService emailService = new FakeAurinkoEmailService();
-    private final AurinkoAccountService accounts = userId -> {
+    private final AurinkoAccountService accounts = (ListOnlyAccountService) userId -> {
         assertThat(userId).isEqualTo(principal.getUserId());
         return List.of(new AurinkoAccount(42, "IMAP", "user@example.com", true));
     };
@@ -92,7 +93,7 @@ public class SearchMessagesToolTest {
         var failure = new AurinkoException(new IOException("private-user-session private-subject private-body"));
         AurinkoAccountService source = accounts;
         if ("accounts".equals(operation)) {
-            source = userId -> {
+            source = (ListOnlyAccountService) userId -> {
                 throw failure;
             };
         } else {

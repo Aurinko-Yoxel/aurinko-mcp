@@ -17,6 +17,15 @@ public class AurinkoAccountServiceImpl implements AurinkoAccountService {
     private final AurinkoService service;
 
     @Override
+    public void deleteAccount(String userId, long accountId) throws AurinkoException {
+        try {
+            service.users.accounts(userId).delete(accountId);
+        } catch (IOException | RuntimeException e) {
+            throw new AurinkoException(e);
+        }
+    }
+
+    @Override
     public List<AurinkoAccount> listAccounts(String userId) throws AurinkoException {
         try {
             var api = service.users.accounts(userId);

@@ -1,5 +1,6 @@
 package com.yoxel.aurinko.mcp.support;
 
+import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
 import com.yoxel.aurinko.mcp.config.AurinkoConfig;
 
@@ -21,20 +22,23 @@ public class FakeAurinkoServer implements AutoCloseable {
 
     public FakeAurinkoServer() throws IOException {
         server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
-        server.createContext("/v1/auth/token/", exchange -> {
-            requests.incrementAndGet();
-            method = exchange.getRequestMethod();
-            path = exchange.getRequestURI().getRawPath();
-            authorization = exchange.getRequestHeaders().getFirst("Authorization");
-            exchange.getRequestBody().readAllBytes();
-            byte[] bytes = body.getBytes(StandardCharsets.UTF_8);
-            exchange.getResponseHeaders().set("Content-Type", "application/json");
-            exchange.sendResponseHeaders(status, bytes.length);
-            try (var output = exchange.getResponseBody()) {
-                output.write(bytes);
-            }
-        });
+        server.createContext("/v1/auth/token/", this::handle);
+        server.createContext("/v1/users/", this::handle);
         server.start();
+    }
+
+    private void handle(HttpExchange exchange) throws IOException {
+        requests.incrementAndGet();
+        method = exchange.getRequestMethod();
+        path = exchange.getRequestURI().getRawPath();
+        authorization = exchange.getRequestHeaders().getFirst("Authorization");
+        exchange.getRequestBody().readAllBytes();
+        byte[] bytes = body.getBytes(StandardCharsets.UTF_8);
+        exchange.getResponseHeaders().set("Content-Type", "application/json");
+        exchange.sendResponseHeaders(status, bytes.length);
+        try (var output = exchange.getResponseBody()) {
+            output.write(bytes);
+        }
     }
 
     public AurinkoConfig config() {

@@ -1,5 +1,6 @@
 package com.yoxel.aurinko.mcp.accounts;
 
+import com.yoxel.aurinko.mcp.support.ListOnlyAccountService;
 import com.yoxel.aurinko.mcp.aurinko.AurinkoAccount;
 import com.yoxel.aurinko.mcp.support.ConnectServletTestServer;
 import org.junit.jupiter.api.Test;
@@ -19,7 +20,7 @@ public class ConnectStartServletTest {
     @ParameterizedTest
     @ValueSource(booleans = {true, false})
     void validStateRendersConfirmationAndBrowserCookie(boolean secure) throws Exception {
-        try (var server = new ConnectServletTestServer(userId -> {
+        try (var server = new ConnectServletTestServer((ListOnlyAccountService) userId -> {
             assertThat(userId).isEqualTo("user-1");
             return List.of(new AurinkoAccount(42, "IMAP", "alice&bob@example.com", true));
         }, code -> {
@@ -49,7 +50,7 @@ public class ConnectStartServletTest {
     @Test
     void invalidStateRejectedBeforeLoadingAccounts() throws Exception {
         var calls = new AtomicInteger();
-        try (var server = new ConnectServletTestServer(userId -> {
+        try (var server = new ConnectServletTestServer((ListOnlyAccountService) userId -> {
             calls.incrementAndGet();
             return List.of();
         }, code -> {
