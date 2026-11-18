@@ -6,6 +6,8 @@ import com.yoxel.aurinko.mcp.aurinko.AurinkoAccount;
 import com.yoxel.aurinko.mcp.auth.McpPrincipal;
 import com.yoxel.aurinko.mcp.config.AurinkoConfig;
 import com.yoxel.aurinko.mcp.config.ServerConfig;
+import com.yoxel.aurinko.mcp.server.AurinkoComponents;
+import com.yoxel.aurinko.mcp.server.JettyServerFactory;
 import com.yoxel.aurinko.mcp.oauth.JweHelper;
 import com.yoxel.aurinko.mcp.oauth.TokenManagerJweImpl;
 import io.modelcontextprotocol.client.McpClient;
@@ -46,10 +48,11 @@ public class MainTest {
                 "AURINKO_CLIENT_ID", "app-client", "AURINKO_CLIENT_SECRET", "app-secret"));
         var aurinkoService = AurinkoService.createWithAppAuth(aurinkoConfig.getUrl(),
                 aurinkoConfig.getClientId(), aurinkoConfig.getClientSecret());
-        server = Main.createServer(config, aurinkoConfig, aurinkoService, userId -> {
+        var aurinko = AurinkoComponents.create(aurinkoConfig, aurinkoService, userId -> {
             accountUserId.set(userId);
             return List.of(new AurinkoAccount(42, "IMAP", "user@example.com", true));
         });
+        server = JettyServerFactory.create(config, aurinkoConfig, aurinko);
         server.start();
         int port = ((ServerConnector) server.getConnectors()[0]).getLocalPort();
         baseUrl = "http://127.0.0.1:" + port;

@@ -2,6 +2,8 @@ package com.yoxel.aurinko.mcp;
 
 import com.yoxel.aurinko.mcp.config.AurinkoConfig;
 import com.yoxel.aurinko.mcp.config.ServerConfig;
+import com.yoxel.aurinko.mcp.server.AurinkoComponents;
+import com.yoxel.aurinko.mcp.server.JettyServerFactory;
 import com.yoxel.aurinko.mcp.oauth.JweHelper;
 import com.yoxel.aurinko.mcp.support.FakeAurinkoServer;
 import io.modelcontextprotocol.client.McpClient;
@@ -59,7 +61,8 @@ public class OAuthFlowTest {
     @BeforeEach
     void startServer() throws Exception {
         aurinko = new FakeAurinkoServer();
-        server = Main.createServer(config, aurinko.config());
+        var aurinkoConfig = aurinko.config();
+        server = JettyServerFactory.create(config, aurinkoConfig, AurinkoComponents.create(aurinkoConfig));
         server.start();
         baseUrl = "http://127.0.0.1:" + ((ServerConnector) server.getConnectors()[0]).getLocalPort();
     }
@@ -330,7 +333,7 @@ public class OAuthFlowTest {
         config = new ServerConfig("127.0.0.1", 0, "http://mcp.example.com",
                 Base64.getEncoder().encodeToString(new byte[32]));
         var singleProvider = new AurinkoConfig(aurinko.getUrl(), "app-client", "app-secret", List.of("Google"), null);
-        server = Main.createServer(config, singleProvider);
+        server = JettyServerFactory.create(config, singleProvider, AurinkoComponents.create(singleProvider));
         server.start();
         baseUrl = "http://127.0.0.1:" + ((ServerConnector) server.getConnectors()[0]).getLocalPort();
 
