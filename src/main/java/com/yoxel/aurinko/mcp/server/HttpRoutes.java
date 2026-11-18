@@ -67,6 +67,6 @@ public class HttpRoutes {
         context.addServlet(new ServletHolder(new ConnectStartServlet(oauth.getConnectStateManager(), aurinko.getAccountService(),
                 oauth.getAuthorizeUrlBuilder(), connectRenderer, config)), CONNECT_PATH);
         context.addServlet(new ServletHolder(new ConnectCallbackServlet(oauth.getConnectStateManager(), aurinko.getAuthService(),
-                connectRenderer, config, oauth.getConnectUsedCodes())), CONNECT_CALLBACK_PATH);
+                connectRenderer, config, oauth.getConnectUsedCodes(), aurinko.getAccountService())), CONNECT_CALLBACK_PATH);
     }
 }

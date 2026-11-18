@@ -1,5 +1,6 @@
 package com.yoxel.aurinko.mcp.accounts;
 
+import com.yoxel.aurinko.mcp.aurinko.AurinkoAccountService;
 import com.yoxel.aurinko.mcp.aurinko.AurinkoAuthService;
 import com.yoxel.aurinko.mcp.aurinko.AurinkoException;
 import com.yoxel.aurinko.mcp.config.ServerConfig;
@@ -25,6 +26,7 @@ public class ConnectCallbackServlet extends HttpServlet {
     private final ConnectPageRenderer renderer;
     private final ServerConfig config;
     private final UsedCodes usedCodes;
+    private final AurinkoAccountService accountService;
 
     @Override
     protected void doGet(HttpServletRequest request, HttpServletResponse response) throws IOException {
@@ -60,8 +62,9 @@ public class ConnectCallbackServlet extends HttpServlet {
         }
         boolean success = false;
         try {
-            var login = authService.exchangeCode(code);
-            success = state.getUserId().equals(login.getUserId());
+            long accountId = authService.exchangeConnectCode(code);
+            success = accountService.listAccounts(state.getUserId()).stream()
+                    .anyMatch(account -> account.getId() == accountId);
             if (!success) {
                 log.error("Aurinko account connection returned an unexpected user");
             }

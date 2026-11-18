@@ -2,10 +2,11 @@ package com.yoxel.aurinko.mcp.accounts;
 
 import com.yoxel.aurinko.mcp.support.ListOnlyAccountService;
 import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
 import com.yoxel.aurinko.mcp.aurinko.AurinkoException;
-import com.yoxel.aurinko.mcp.aurinko.AurinkoLogin;
+import com.yoxel.aurinko.mcp.aurinko.AurinkoAccount;
 import com.yoxel.aurinko.mcp.support.ConnectServletTestServer;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -26,12 +27,15 @@ public class ConnectCallbackServletTest {
     @ValueSource(booleans = {false, true})
     void connectionLinkConsumedEvenWhenAurinkoFails(boolean fail) throws Exception {
         var calls = new AtomicInteger();
-        try (var server = new ConnectServletTestServer((ListOnlyAccountService) userId -> List.of(), code -> {
+        try (var server = new ConnectServletTestServer((ListOnlyAccountService) userId -> {
+            assertThat(userId).isEqualTo("user-1");
+            return List.of(new AurinkoAccount(42, "IMAP", "user@example.com", true));
+        }, code -> {
             calls.incrementAndGet();
             if (fail) {
                 throw new AurinkoException();
             }
-            return new AurinkoLogin("user-1", "private-session", 42);
+            return 42;
         })) {
             String state = server.getStateManager().createState("user-1", "IMAP");
             String cookie = cookie(server, state);
@@ -47,13 +51,17 @@ public class ConnectCallbackServletTest {
         }
     }
 
-    @Test
-    void matchingUserCompletesConnectionAndDeletesCookie() throws Exception {
+    @ParameterizedTest
+    @ValueSource(booleans = {true, false})
+    void ownedAccountCompletesConnectionAndDeletesCookie(boolean active) throws Exception {
         var calls = new AtomicInteger();
-        try (var server = new ConnectServletTestServer((ListOnlyAccountService) userId -> List.of(), code -> {
+        try (var server = new ConnectServletTestServer((ListOnlyAccountService) userId -> {
+            assertThat(userId).isEqualTo("user-1");
+            return List.of(new AurinkoAccount(42, "IMAP", "user@example.com", active));
+        }, code -> {
             assertThat(code).isEqualTo("provider-code");
             calls.incrementAndGet();
-            return new AurinkoLogin("user-1", "private-session", 42);
+            return 42;
         })) {
             String state = server.getStateManager().createState("user-1", "IMAP");
 
@@ -72,7 +80,7 @@ public class ConnectCallbackServletTest {
         var calls = new AtomicInteger();
         try (var server = new ConnectServletTestServer((ListOnlyAccountService) userId -> List.of(), code -> {
             calls.incrementAndGet();
-            return new AurinkoLogin("user-1", "private-session", 42);
+            return 42;
         })) {
             String state = server.getStateManager().createState("user-1", "IMAP");
             String cookie = "missing".equals(kind) ? null : "aurinko_connect_nonce=wrong-nonce";
@@ -114,21 +122,29 @@ public class ConnectCallbackServletTest {
         }
     }
 
-    @Test
-    void differentUserReturnsFailureAndLogsNoUserData() throws Exception {
+    @ParameterizedTest
+    @ValueSource(booleans = {true, false})
+    void foreignAccountReturnsFailureAndLogsNoUserData(boolean emptyList) throws Exception {
         Logger logger = (Logger) LoggerFactory.getLogger(ConnectCallbackServlet.class);
         var appender = new ListAppender<ILoggingEvent>();
         appender.start();
         logger.addAppender(appender);
-        try (var server = new ConnectServletTestServer((ListOnlyAccountService) userId -> List.of(),
-                code -> new AurinkoLogin("other-user", "private-session", 42))) {
+        try (var server = new ConnectServletTestServer((ListOnlyAccountService) userId -> {
+            assertThat(userId).isEqualTo("user-1");
+            return emptyList ? List.of() : List.of(new AurinkoAccount(43, "IMAP", "other@example.com", true));
+        },
+                code -> 42)) {
             String state = server.getStateManager().createState("user-1", "IMAP");
 
             var response = server.get(path(state, "success", "provider-code"), cookie(server, state));
 
+            assertThat(response.statusCode()).isEqualTo(200);
             assertThat(response.body()).contains("Account was not connected. Please try again from the chat.");
-            assertThat(appender.list).isNotEmpty().allSatisfy(event -> assertThat(event.getFormattedMessage())
-                    .doesNotContain("user-1", "other-user", "private-session", state));
+            assertThat(appender.list).isNotEmpty().allSatisfy(event -> {
+                assertThat(event.getLevel()).isEqualTo(Level.ERROR);
+                assertThat(event.getFormattedMessage()).isEqualTo("Aurinko account connection returned an unexpected user")
+                        .doesNotContain("user-1", "other-user", "42", "43", "private-session", state);
+            });
             assertCookieDeleted(response.headers().firstValue("Set-Cookie").orElseThrow());
         } finally {
             logger.detachAppender(appender);
@@ -136,10 +152,21 @@ public class ConnectCallbackServletTest {
         }
     }
 
-    @Test
-    void aurinkoFailureReturnsFailurePage() throws Exception {
-        try (var server = new ConnectServletTestServer((ListOnlyAccountService) userId -> List.of(), code -> {
+    @ParameterizedTest
+    @ValueSource(strings = {"exchange", "accounts"})
+    void aurinkoFailureReturnsFailurePage(String operation) throws Exception {
+        var exchanges = new AtomicInteger();
+        var lists = new AtomicInteger();
+        try (var server = new ConnectServletTestServer((ListOnlyAccountService) userId -> {
+            assertThat(userId).isEqualTo("user-1");
+            lists.incrementAndGet();
             throw new AurinkoException();
+        }, code -> {
+            exchanges.incrementAndGet();
+            if ("exchange".equals(operation)) {
+                throw new AurinkoException();
+            }
+            return 42;
         })) {
             String state = server.getStateManager().createState("user-1", "IMAP");
 
@@ -147,6 +174,8 @@ public class ConnectCallbackServletTest {
 
             assertThat(response.statusCode()).isEqualTo(200);
             assertThat(response.body()).contains("Account was not connected. Please try again from the chat.");
+            assertThat(exchanges.get()).isEqualTo(1);
+            assertThat(lists.get()).isEqualTo("accounts".equals(operation) ? 1 : 0);
             assertCookieDeleted(response.headers().firstValue("Set-Cookie").orElseThrow());
         }
     }

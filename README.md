@@ -458,7 +458,7 @@ The connection flow uses:
 - Aurinko `/v1/auth/authorizeUser` with `accountRole=secondary`, the selected
   service type, requested scopes, user ID, timestamp, and user signature.
 - `GET /accounts/callback` to validate the state and nonce, exchange the code,
-  verify that Aurinko returned the expected user ID, and show the result page.
+  verify that the connected account appeared in the user's account list, and show the result page.
   The nonce cookie is deleted by the callback. These browser routes do not
   require a Bearer token.
 
@@ -472,9 +472,9 @@ secret as the key. The timestamp comes from the server clock.
 
 Confirmation pages use `Cache-Control: no-store` and `Referrer-Policy: no-referrer`.
 All displayed email addresses and service types are HTML-escaped. Invalid state
-or nonce receives HTTP 400. Provider cancellation, an exchange error, or a
-different user ID from Aurinko produces the failure page without exposing user
-data in error logs. On success, the page says **Account connected. You can return
+or nonce receives HTTP 400. Provider cancellation, an exchange or account-list error,
+or an account absent from the user's account list produces the failure page without
+exposing user data in error logs. On success, the page says **Account connected. You can return
 to the chat.** The user can then call `list_accounts` again.
 
 ## Disconnect an account

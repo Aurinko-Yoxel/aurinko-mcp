@@ -7,7 +7,6 @@ import com.yoxel.aurinko.mcp.accounts.ConnectState;
 import com.yoxel.aurinko.mcp.accounts.ConnectStateManager;
 import com.yoxel.aurinko.mcp.accounts.ConnectStateManagerJweImpl;
 import com.yoxel.aurinko.mcp.aurinko.AurinkoAccountService;
-import com.yoxel.aurinko.mcp.aurinko.AurinkoAuthService;
 import com.yoxel.aurinko.mcp.aurinko.AurinkoAuthorizeUrlBuilderImpl;
 import com.yoxel.aurinko.mcp.aurinko.UserSignatureHelper;
 import com.yoxel.aurinko.mcp.config.AurinkoConfig;
@@ -37,11 +36,11 @@ public class ConnectServletTestServer implements AutoCloseable {
     private final ConnectStateManager stateManager;
     private final HttpClient client = HttpClient.newBuilder().followRedirects(HttpClient.Redirect.NEVER).build();
 
-    public ConnectServletTestServer(AurinkoAccountService accounts, AurinkoAuthService auth) throws Exception {
+    public ConnectServletTestServer(AurinkoAccountService accounts, ConnectOnlyAuthService auth) throws Exception {
         this(accounts, auth, true);
     }
 
-    public ConnectServletTestServer(AurinkoAccountService accounts, AurinkoAuthService auth, boolean secure) throws Exception {
+    public ConnectServletTestServer(AurinkoAccountService accounts, ConnectOnlyAuthService auth, boolean secure) throws Exception {
         var config = new ServerConfig("127.0.0.1", 0,
                 (secure ? "https://mcp.example.com" : "http://localhost"), Base64.getEncoder().encodeToString(new byte[32]));
         var aurinkoConfig = new AurinkoConfig("https://api.example.com", "app-client", "_-7dzLuqmYh3ZlVEMyIRAA",
@@ -60,7 +59,7 @@ public class ConnectServletTestServer implements AutoCloseable {
         context.addServlet(new ServletHolder(new ConnectStartServlet(stateManager, accounts, builder, renderer, config)),
                 "/accounts/connect");
         context.addServlet(new ServletHolder(new ConnectCallbackServlet(stateManager, auth, renderer, config,
-                new UsedCodesMemoryImpl(clock, ConnectState.LIFETIME))),
+                new UsedCodesMemoryImpl(clock, ConnectState.LIFETIME), accounts)),
                 "/accounts/callback");
         server.setHandler(context);
         server.start();
