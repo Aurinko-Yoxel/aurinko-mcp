@@ -25,6 +25,7 @@ public class HttpRoutes {
 
     public static final String CONTEXT_PATH = "/";
     public static final String MCP_PATH = "/mcp";
+    public static final String HEALTH_PATH = "/health";
     public static final String PROTECTED_RESOURCE_PATH = "/.well-known/oauth-protected-resource";
     public static final String PROTECTED_RESOURCE_MCP_PATH = PROTECTED_RESOURCE_PATH + MCP_PATH;
     public static final String AUTHORIZATION_SERVER_PATH = "/.well-known/oauth-authorization-server";
@@ -40,6 +41,7 @@ public class HttpRoutes {
 
     public static void register(ServletContextHandler context, HttpServletStreamableServerTransportProvider transport,
             AurinkoComponents aurinko, OAuthComponents oauth, ServerConfig config, McpJsonMapper jsonMapper) {
+        context.addServlet(new ServletHolder(new HealthServlet()), HEALTH_PATH);
         ServletHolder servlet = new ServletHolder(transport);
         servlet.setAsyncSupported(true);
         context.addServlet(servlet, MCP_PATH);

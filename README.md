@@ -50,6 +50,7 @@ Configuration is read from environment variables:
 | --- | --- | --- |
 | `HOST` | `127.0.0.1` | HTTP bind address |
 | `PORT` | `8080` | HTTP port, from 1 to 65535 |
+| `JAVA_OPTS` | `-XX:MaxRAMPercentage=75` | Optional JVM options; applies only in the container |
 | `PUBLIC_URL` | `http://127.0.0.1:<PORT>` | External base URL used for token resource validation and OAuth metadata; HTTPS required except for localhost, 127.0.0.1 and [::1] |
 | `TOKEN_KEY` | Required | Base64-encoded 32-byte AES encryption key; startup fails if absent or invalid |
 | `AURINKO_URL` | `https://api.aurinko.io` | Aurinko API base URL; HTTPS required except for localhost, 127.0.0.1 and [::1] |
@@ -76,6 +77,46 @@ PORT=9090 PUBLIC_URL=http://127.0.0.1:9090 \
 Startup fails if the Aurinko client ID or secret is missing. Store the secret
 securely. A single application-authenticated `AurinkoService` is shared by
 login requests and closed when the server stops.
+
+## Run in Docker
+
+Build the image from the repository root:
+
+```sh
+docker build -t aurinko-mcp .
+```
+
+Set the required runtime environment variables, then start the container:
+
+```sh
+export TOKEN_KEY='<stored base64-encoded 32-byte key>'
+export PUBLIC_URL=https://mcp.example.com
+export AURINKO_CLIENT_ID='<Aurinko application client ID>'
+export AURINKO_CLIENT_SECRET='<Aurinko application secret>'
+docker run --rm --name aurinko-mcp -p 3000:3000 \
+  -e TOKEN_KEY \
+  -e PUBLIC_URL \
+  -e AURINKO_CLIENT_ID \
+  -e AURINKO_CLIENT_SECRET \
+  aurinko-mcp
+```
+
+Generate `TOKEN_KEY` once with `openssl rand -base64 32`, store it as a secret,
+and supply it in the environment for every run. Changing it invalidates all
+previously issued tokens. In Coolify, set these variables in the application's
+runtime environment. `PUBLIC_URL` is the external HTTPS base URL without `/mcp`
+at the end. The container listens on `0.0.0.0:3000` and runs as an unprivileged
+user. Image builds skip tests; run `mvn package` separately to run them.
+
+`JAVA_OPTS` is optional and defaults to `-XX:MaxRAMPercentage=75`. Override it
+with `-e JAVA_OPTS='...'` when starting the container if needed.
+
+In the Aurinko application, enable **End user sessions** (`EndUserSessions`) and
+allow both return URLs: `<PUBLIC_URL>/oauth/aurinko/callback` and
+`<PUBLIC_URL>/accounts/callback`.
+
+Configure the platform's health check to use `GET /health` on port 3000. It needs
+no token and returns HTTP 200 with `{"status":"ok"}` without contacting Aurinko.
 
 ## Aurinko application setup
 
@@ -116,6 +157,7 @@ The following routes are public:
 
 | Route | Purpose |
 | --- | --- |
+| `GET /health` | Public health check; returns HTTP 200 with `{"status":"ok"}` without contacting Aurinko |
 | `GET /.well-known/oauth-authorization-server` | Issuer, endpoint URLs, response/grant types, S256 PKCE support, and public client authentication method `none` |
 | `POST /oauth/register` | Register a public MCP client using JSON `redirect_uris`; returns HTTP 201 with `client_id`, `redirect_uris`, and `token_endpoint_auth_method: "none"` |
 | `GET /oauth/authorize` | Validate an authorization request and show the requesting application's host with a login button for each configured provider |

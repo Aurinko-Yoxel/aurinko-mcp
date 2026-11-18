@@ -178,6 +178,20 @@ public class MainTest {
     }
 
     @Test
+    void healthIsPublicAndMcpStillRequiresToken() throws Exception {
+        var client = HttpClient.newHttpClient();
+        var health = client.send(HttpRequest.newBuilder(URI.create(baseUrl + "/health")).GET().build(),
+                HttpResponse.BodyHandlers.ofString());
+        var mcp = client.send(HttpRequest.newBuilder(URI.create(baseUrl + "/mcp"))
+                        .POST(HttpRequest.BodyPublishers.noBody()).build(), HttpResponse.BodyHandlers.ofString());
+
+        assertThat(health.statusCode()).isEqualTo(200);
+        assertThat(health.body()).isEqualTo("{\"status\":\"ok\"}");
+        assertThat(mcp.statusCode()).isEqualTo(401);
+        assertThat(accountUserId.get()).isNull();
+    }
+
+    @Test
     void missingTokenRejectedOverHttp() throws Exception {
         var request = HttpRequest.newBuilder(URI.create(baseUrl + "/mcp")).GET().build();
 

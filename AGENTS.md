@@ -12,6 +12,7 @@ Setup, environment variables and endpoint reference are in `README.md`.
 
 - JDK 17, Maven.
 - `mvn package` compiles, runs all tests and builds the runnable jar.
+- `docker build -t aurinko-mcp .` builds the container image; update `Dockerfile` and `start.sh` when changing how the application starts.
 - All tests must pass before a task is considered done.
 
 ## Constraints
