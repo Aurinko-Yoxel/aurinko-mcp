@@ -103,6 +103,43 @@ public class MainTest {
     }
 
     @Test
+    void sessionRemainsAccessibleOnlyToItsOwner() throws Exception {
+        var manager = new TokenManagerJweImpl(new JweHelper(config.getTokenKey(), Clock.systemUTC()), config.getMcpUrl());
+        String ownerToken = manager.createAccessToken(new McpPrincipal("user-1", "session-1", "client-1"));
+        String otherToken = manager.createAccessToken(new McpPrincipal("user-2", "session-2", "client-1"));
+        var sessionId = new AtomicReference<String>();
+        var transport = HttpClientStreamableHttpTransport.builder(baseUrl)
+                .endpoint("/mcp")
+                .requestBuilder(HttpRequest.newBuilder().header("Authorization", "Bearer " + ownerToken))
+                .httpRequestCustomizer((builder, method, uri, body, context) ->
+                        builder.build().headers().firstValue("Mcp-Session-Id").ifPresent(sessionId::set))
+                .build();
+
+        try (var client = McpClient.sync(transport).requestTimeout(Duration.ofSeconds(10)).build()) {
+            client.initialize();
+            var ping = McpSchema.CallToolRequest.builder("ping").arguments(Map.of()).build();
+            assertThat(client.callTool(ping).content()).containsExactly(new McpSchema.TextContent("pong"));
+            assertThat(sessionId.get()).isNotBlank();
+
+            var request = HttpRequest.newBuilder(URI.create(baseUrl + "/mcp"))
+                    .header("Authorization", "Bearer " + otherToken)
+                    .header("Mcp-Session-Id", sessionId.get())
+                    .header("Content-Type", "application/json")
+                    .header("Accept", "application/json, text/event-stream")
+                    .POST(HttpRequest.BodyPublishers.ofString(
+                            "{\"jsonrpc\":\"2.0\",\"id\":42,\"method\":\"tools/call\",\"params\":{\"name\":\"ping\",\"arguments\":{}}}"))
+                    .build();
+            var response = HttpClient.newHttpClient().send(request, HttpResponse.BodyHandlers.ofString());
+
+            assertThat(response.statusCode()).isEqualTo(404);
+            assertThat(response.body()).isEmpty();
+            var result = client.callTool(ping);
+            assertThat(result.isError()).isFalse();
+            assertThat(result.content()).containsExactly(new McpSchema.TextContent("pong"));
+        }
+    }
+
+    @Test
     void missingTokenRejectedOverHttp() throws Exception {
         var request = HttpRequest.newBuilder(URI.create(baseUrl + "/mcp")).GET().build();
 

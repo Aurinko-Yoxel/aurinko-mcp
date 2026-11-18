@@ -6,6 +6,8 @@ import com.yoxel.aurinko.mcp.aurinko.AurinkoAuthorizeUrlBuilder;
 import com.yoxel.aurinko.mcp.aurinko.AurinkoAuthorizeUrlBuilderImpl;
 import com.yoxel.aurinko.mcp.aurinko.UserSignatureHelper;
 import com.yoxel.aurinko.mcp.auth.AccessTokenVerifier;
+import com.yoxel.aurinko.mcp.auth.McpSessionOwners;
+import com.yoxel.aurinko.mcp.auth.McpSessionOwnersMemoryImpl;
 import com.yoxel.aurinko.mcp.config.AurinkoConfig;
 import com.yoxel.aurinko.mcp.config.ServerConfig;
 import com.yoxel.aurinko.mcp.oauth.AurinkoUserLogin;
@@ -42,6 +44,7 @@ public class OAuthComponents {
     JweHelper jweHelper;
     TokenManager tokenManager;
     AccessTokenVerifier accessTokenVerifier;
+    McpSessionOwners sessionOwners;
     ClientRegistrationManager clientRegistrationManager;
     RedirectUriValidator redirectUriValidator;
     List<GrantHandler> grantHandlers;
@@ -68,7 +71,8 @@ public class OAuthComponents {
         var connectStateManager = new ConnectStateManagerJweImpl(jweHelper);
         var renderer = new LoginPageRendererImpl();
         var userLogin = new AurinkoUserLogin(loginStateManager, urlBuilder, renderer, config, aurinkoConfig);
-        return new OAuthComponents(jweHelper, tokenManager, tokenManager, registrationManager, redirectUriValidator,
+        var sessionOwners = new McpSessionOwnersMemoryImpl(clock);
+        return new OAuthComponents(jweHelper, tokenManager, tokenManager, sessionOwners, registrationManager, redirectUriValidator,
                 List.of(codeGrantHandler, refreshGrantHandler), completer, loginStateManager, connectStateManager,
                 urlBuilder, userLogin);
     }

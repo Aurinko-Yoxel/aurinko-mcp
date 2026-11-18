@@ -59,6 +59,7 @@ Root package: `com.yoxel.aurinko.mcp`
 
 ## Security rules
 
+- Never log MCP session identifiers (`Mcp-Session-Id`).
 - Never log or return to the client: the Aurinko user session, the client secret, `TOKEN_KEY`, access and
   refresh tokens, authorization codes, state values. Exclude such fields from `toString`.
 - Never log message bodies, subjects or event contents.

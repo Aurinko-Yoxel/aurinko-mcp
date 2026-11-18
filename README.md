@@ -93,6 +93,12 @@ the Aurinko application. Provider configuration follows the
 [Aurinko user OAuth flow](https://docs.aurinko.io/authentication/oauth-flow/user-oauth-flow).
 
 Every request to `/mcp` requires `Authorization: Bearer <access-token>`.
+
+Each MCP session is bound to the user and client that initialized it. Requests
+with a different user or client, or with an unknown `Mcp-Session-Id`, receive
+HTTP 404 with an empty body. A matching owner keeps the session ownership entry
+active for 24 hours after its most recent access.
+
 Missing or invalid tokens receive HTTP 401 and this header:
 
 ```text

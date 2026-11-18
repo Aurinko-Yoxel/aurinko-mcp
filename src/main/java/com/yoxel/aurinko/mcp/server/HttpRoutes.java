@@ -4,8 +4,8 @@ import com.yoxel.aurinko.mcp.accounts.ConnectCallbackServlet;
 import com.yoxel.aurinko.mcp.accounts.ConnectPageRenderer;
 import com.yoxel.aurinko.mcp.accounts.ConnectStartServlet;
 import com.yoxel.aurinko.mcp.auth.BearerAuthFilter;
+import com.yoxel.aurinko.mcp.auth.McpSessionOwnerFilter;
 import com.yoxel.aurinko.mcp.auth.ProtectedResourceMetadataServlet;
-import com.yoxel.aurinko.mcp.config.AurinkoConfig;
 import com.yoxel.aurinko.mcp.config.ServerConfig;
 import com.yoxel.aurinko.mcp.oauth.AurinkoCallbackServlet;
 import com.yoxel.aurinko.mcp.oauth.AuthorizationServerMetadataServlet;
@@ -39,14 +39,16 @@ public class HttpRoutes {
     }
 
     public static void register(ServletContextHandler context, HttpServletStreamableServerTransportProvider transport,
-            AurinkoComponents aurinko, OAuthComponents oauth, ServerConfig config,
-            AurinkoConfig aurinkoConfig, McpJsonMapper jsonMapper) {
+            AurinkoComponents aurinko, OAuthComponents oauth, ServerConfig config, McpJsonMapper jsonMapper) {
         ServletHolder servlet = new ServletHolder(transport);
         servlet.setAsyncSupported(true);
         context.addServlet(servlet, MCP_PATH);
         FilterHolder authFilter = new FilterHolder(new BearerAuthFilter(oauth.getAccessTokenVerifier(), config));
         authFilter.setAsyncSupported(true);
         context.addFilter(authFilter, MCP_PATH, EnumSet.of(DispatcherType.REQUEST, DispatcherType.ASYNC));
+        FilterHolder ownerFilter = new FilterHolder(new McpSessionOwnerFilter(oauth.getSessionOwners()));
+        ownerFilter.setAsyncSupported(true);
+        context.addFilter(ownerFilter, MCP_PATH, EnumSet.of(DispatcherType.REQUEST, DispatcherType.ASYNC));
 
         ServletHolder metadata = new ServletHolder(new ProtectedResourceMetadataServlet(config, jsonMapper));
         context.getServletHandler().addServletWithMappings(metadata, PROTECTED_RESOURCE_PATH, PROTECTED_RESOURCE_MCP_PATH);

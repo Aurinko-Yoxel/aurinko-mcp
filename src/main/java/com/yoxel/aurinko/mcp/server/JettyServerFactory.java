@@ -34,7 +34,7 @@ public class JettyServerFactory {
 
         ServletContextHandler context = new ServletContextHandler();
         context.setContextPath(HttpRoutes.CONTEXT_PATH);
-        HttpRoutes.register(context, transport, aurinko, oauth, config, aurinkoConfig, jsonMapper);
+        HttpRoutes.register(context, transport, aurinko, oauth, config, jsonMapper);
         server.setHandler(context);
         server.addEventListener(new LifeCycle.Listener() {
             @Override
