@@ -1,35 +1,164 @@
 # Aurinko MCP Server
 
-A standalone Java MCP server for the Aurinko API. The intended integration lets
-users connect an IMAP mailbox and a CalDAV calendar and work with them from MCP
-clients such as ChatGPT, Claude, and Gemini.
+**Bring existing mailboxes and calendars to AI assistants — without replacing your mail infrastructure.**
 
-The current implementation provides a Streamable HTTP endpoint at `/mcp` with
-eight tools: `ping`, `list_accounts`, `search_messages`, `get_message`, `list_events`,
-`create_event`, `connect_account`, and `disconnect_account`.
-`ping` returns `pong`; `list_accounts` lists the current user's connected
-mailboxes and calendars. Both accept an empty object. The mail tools search and
-read messages in a selected account. The calendar tools list events over a time
-range and create events without attendees.
-The endpoint requires an encrypted JWE access token issued by this server's
-`TokenManager`. Each token contains a user ID, an Aurinko `userSession`, a client ID, the resource URL,
-and an expiration time. Tokens expire after one hour and are verified without
-a database. Encryption uses Nimbus JOSE+JWT with `dir` and `A256GCM`.
-OAuth client registration, authorization code exchange with S256 PKCE, and
-refresh token grants are implemented. Refresh tokens expire after 30 days.
-Users sign in through Google or Microsoft via Aurinko. Their Aurinko `userId`
-becomes the user ID in this server's authorization codes and tokens.
-IMAP mailboxes and CalDAV calendars can be connected through a browser link
-returned by `connect_account`.
-There is no token revocation or CORS support.
+An open-source, self-hostable **Model Context Protocol (MCP) gateway** powered by the [Aurinko Unified Mailbox API](https://www.aurinko.io/). Connect existing IMAP mailboxes and CalDAV calendars to MCP-compatible assistants using a single HTTP endpoint and user-specific authorization.
 
-## Requirements
+**Built for email hosting providers, ISPs, SaaS platforms, and developers.** Offer an AI-accessible mailbox experience to your users while keeping your existing mail servers and account infrastructure.
+
+> **Aurinko account required.** This gateway is open source, but it is **not a standalone IMAP or CalDAV server**. To run it, you must create an **Aurinko account**, configure an **Aurinko application** with End User Sessions and login providers, and provide that application's client ID and secret. The gateway uses Aurinko for mailbox connections, user sessions, and unified email/calendar API calls. Aurinko service usage may be subject to its pricing and terms.
+
+[Get started](#quick-start) · [For hosting providers](#for-isps-and-email-hosting-providers) · [Available tools](#what-users-can-do-today) · [Architecture](#how-it-works) · [Technical reference](#technical-reference)
+
+## Why this exists
+
+Your customers already have mailboxes. They shouldn't need to migrate to a new email platform to use AI assistants with their email and calendars.
+
+With Aurinko MCP Server, you can:
+
+- **Keep existing infrastructure.** Connect existing IMAP mailboxes and CalDAV calendars through Aurinko.
+- **Host your own MCP endpoint.** Deploy a lightweight Java service on your infrastructure or preferred hosting platform.
+- **Support multiple users.** Each person signs in and accesses their own Aurinko-connected accounts, not a shared administrator mailbox.
+- **Offer account self-service.** Users can connect and disconnect supported mailboxes and calendars through browser-assisted flows.
+- **Customize what assistants see.** Override tool descriptions or disable selected tools through YAML without recompiling.
+
+### What users can do today
+
+| Capability | MCP tool | Status |
+| --- | --- | --- |
+| List their connected mailboxes and calendars | `list_accounts` | Available |
+| Search email | `search_messages` | Available |
+| Read an email message | `get_message` | Available |
+| List calendar events | `list_events` | Available |
+| Create a calendar event (without attendees) | `create_event` | Available |
+| Connect a supported mailbox or calendar | `connect_account` | Available |
+| Disconnect an additional account | `disconnect_account` | Available |
+| Test connectivity | `ping` | Available |
+| Search or edit CardDAV contacts | — | **Not implemented in this gateway yet** |
+
+The current server supports Google, Microsoft 365, iCloud, IMAP, and CalDAV account connection types by default. **CardDAV support is a potential extension, not a feature of the current MCP toolset.** Availability of individual tools depends on the connected account's capabilities and granted scopes.
+
+## Quick start
+
+### 1. Create and configure an Aurinko application
+
+1. Create an account with [Aurinko](https://www.aurinko.io/) and create an application in the Aurinko developer console.
+2. Enable **End user sessions** (`EndUserSessions`) for the application.
+3. Configure **Google and/or Microsoft login**, including the corresponding provider OAuth application credentials required by Aurinko. These are the currently implemented user sign-in options; connecting an IMAP account is a separate step after sign-in.
+4. Copy the application's **client ID** and **client secret**.
+5. Add these allowed return URLs to the Aurinko application (replace the domain with your deployment URL):
+
+   - `https://mcp.example.com/oauth/aurinko/callback`
+   - `https://mcp.example.com/accounts/callback`
+
+For more detail, see the [Aurinko user OAuth flow](https://docs.aurinko.io/authentication/oauth-flow/user-oauth-flow).
+
+### 2. Build and run locally
+
+Requires **Java 17+**, **Maven 3.9+**, and build-time access to Maven Central and JitPack.
+
+```sh
+mvn clean package
+export TOKEN_KEY="$(openssl rand -base64 32)"
+export PUBLIC_URL=http://127.0.0.1:8080
+export AURINKO_CLIENT_ID='<your Aurinko application client ID>'
+export AURINKO_CLIENT_SECRET='<your Aurinko application secret>'
+java -jar target/aurinko-mcp-0.1.0-SNAPSHOT.jar
+```
+
+The MCP endpoint is `http://127.0.0.1:8080/mcp`. **For this local flow, allow the matching `http://127.0.0.1:8080` callback URLs in your Aurinko application.** Store `TOKEN_KEY` securely and reuse it across restarts; changing it invalidates previously issued tokens and registration state.
+
+### 3. Connect an MCP client and sign in
+
+Configure an MCP client that supports **remote Streamable HTTP and OAuth** to use your server's `/mcp` URL. The server publishes OAuth discovery metadata, supports public client registration and S256 PKCE, and redirects users to a Google or Microsoft sign-in through Aurinko. After signing in, users can call `connect_account` to add an IMAP mailbox or CalDAV calendar via a browser link.
+
+Client setup varies by assistant and plan. **ChatGPT, Claude, and Gemini compatibility should be validated individually**; this README does not claim identical remote MCP support across all three.
+
+### 4. Deploy with Docker
+
+```sh
+docker build -t aurinko-mcp .
+
+# Set and securely store these values before running:
+export TOKEN_KEY='<stored base64-encoded 32-byte key>'
+export PUBLIC_URL=https://mcp.example.com
+export AURINKO_CLIENT_ID='<your Aurinko application client ID>'
+export AURINKO_CLIENT_SECRET='<your Aurinko application secret>'
+
+docker run --rm --name aurinko-mcp -p 3000:3000 \
+  -e TOKEN_KEY \
+  -e PUBLIC_URL \
+  -e AURINKO_CLIENT_ID \
+  -e AURINKO_CLIENT_SECRET \
+  aurinko-mcp
+```
+
+The container listens on port **3000**. Place it behind an HTTPS reverse proxy, point `PUBLIC_URL` at its externally reachable base URL (without `/mcp`), and configure both Aurinko callback URLs for that domain. The unauthenticated health endpoint is `GET /health`.
+
+## For ISPs and email hosting providers
+
+**Offer your subscribers an AI mailbox connection without building an MCP/OAuth stack or replacing your IMAP and CalDAV services.**
+
+A typical evaluation looks like this:
+
+1. Your team creates one Aurinko application for the integration and configures user login.
+2. You deploy this open-source MCP gateway at a hostname such as `mcp.yourprovider.com`.
+3. Each subscriber authenticates individually and connects their own supported mailbox/calendar through Aurinko.
+4. The subscriber connects an MCP-compatible assistant to your gateway URL and uses the available tools.
+
+**What you operate:** the MCP proxy, its public HTTPS endpoint, configuration, and service availability. **What Aurinko provides:** application configuration, account connections, end-user sessions, and unified mailbox/calendar APIs. Credentials and mailbox data are processed through Aurinko according to its service architecture; self-hosting the proxy does **not** mean all data stays exclusively on your servers.
+
+**Evaluating a multi-subscriber rollout?** Start with the open-source deployment, then [contact Aurinko](https://www.aurinko.io/) to discuss provisioning, operational requirements, and commercial terms. Bulk provisioning, white-label UI, and ISP-specific billing are **not claimed as built-in features of this repository**.
+
+## How it works
+
+```text
+   MCP-compatible AI assistant
+              |
+       OAuth + MCP over HTTPS
+              |
+   +---------------------------+
+   | Aurinko MCP Server        |  <- Open source; you deploy it
+   | /mcp + OAuth endpoints    |
+   +---------------------------+
+              |
+     User-specific Aurinko session
+              |
+   +---------------------------+
+   | Aurinko Unified API       |  <- Aurinko account + app required
+   | Users / sessions /        |
+   | connected accounts        |
+   +---------------------------+
+              |
+      Provider connections
+              |
+     IMAP / CalDAV / Google /
+       Microsoft 365 / iCloud
+```
+
+The gateway authenticates MCP clients and associates each request with the verified user's Aurinko session. Mail and calendar tools validate account ownership before making API calls. An ISP's Aurinko application credentials configure the integration; they are **not** credentials that subscribers should enter into their AI assistants.
+
+## Security and deployment considerations
+
+- The server uses OAuth authorization code + **S256 PKCE** and encrypted JWE tokens; access tokens expire after **one hour**, refresh tokens after **30 days**.
+- Tokens are bound to a user, client, resource, and Aurinko session. MCP sessions also enforce user/client ownership.
+- `TOKEN_KEY` is a required 32-byte AES key. Treat it and the Aurinko application secret as production secrets.
+- **There is currently no token revocation**, and previously issued refresh tokens remain valid until expiry even after refresh.
+- **Multi-instance deployment needs additional work:** used authorization codes are tracked in process memory, not in a shared store.
+- **CORS is not supported.** Public deployments require HTTPS except for documented localhost development cases.
+- Consider your provider's data protection, consent, rate limits, access review, and operational policies before offering this to subscribers.
+
+## Technical reference
+
+The sections below retain the original setup, configuration, OAuth, tool usage, and testing details for implementers.
+
+### Requirements
 
 - Java 17 or higher
 - Maven 3.9 or higher
 - Network access to Maven Central and JitPack for the initial build
 
-## Build and run
+### Build and run
 
 ```sh
 mvn clean package
@@ -80,7 +209,7 @@ Startup fails if the Aurinko client ID or secret is missing. Store the secret
 securely. A single application-authenticated `AurinkoService` is shared by
 login requests and closed when the server stops.
 
-## Run in Docker
+### Run in Docker
 
 Build the image from the repository root:
 
@@ -120,7 +249,7 @@ allow both return URLs: `<PUBLIC_URL>/oauth/aurinko/callback` and
 Configure the platform's health check to use `GET /health` on port 3000. It needs
 no token and returns HTTP 200 with `{"status":"ok"}` without contacting Aurinko.
 
-## Override tool descriptions
+### Override tool descriptions
 
 Default tool and parameter descriptions and service type hints are bundled in
 `src/main/resources/tools.yaml`. Set `TOOLS_CONFIG_FILE` to a custom YAML file to
@@ -155,7 +284,7 @@ For Docker or Coolify, mount the file into the container and set
 -e TOOLS_CONFIG_FILE=/app/custom-tools.yaml
 ```
 
-## Aurinko application setup
+### Aurinko application setup
 
 In the Aurinko application settings:
 
@@ -188,7 +317,7 @@ Both `/.well-known/oauth-protected-resource` and
 document with `resource` set to the MCP URL and `authorization_servers` set to
 `[PUBLIC_URL]`.
 
-## OAuth registration and authorization
+### OAuth registration and authorization
 
 The following routes are public:
 
@@ -320,7 +449,7 @@ and is never returned as a separate client-visible field. Account access tokens
 from the exchange are not retained. Additional mailboxes and calendars are
 connected through the separate `connect_account` flow described below.
 
-## Try ping
+### Try ping
 
 MCP clients first initialize a session, then list or call tools. The following
 commands use the access token returned by `/oauth/token` for the configured
@@ -364,7 +493,7 @@ curl http://127.0.0.1:8080/mcp \
 
 The tool result contains `{"type":"text","text":"pong"}` and `isError: false`.
 
-## List connected accounts
+### List connected accounts
 
 Call `list_accounts` with empty arguments using the same authenticated MCP
 session:
@@ -392,7 +521,7 @@ limit or an empty page. An empty list returns
 `[]`. Aurinko failures return `isError: true` with
 `Failed to load accounts from Aurinko`; diagnostic details stay in server logs.
 
-## Search and read email
+### Search and read email
 
 Choose an active `accountId` from `list_accounts`. Both mail tools verify that
 the account belongs to the authenticated user and is active before querying
@@ -430,7 +559,7 @@ Aurinko failures return `isError: true` and `Failed to load messages from Aurink
 Logs record the failure type and stack location without exception messages,
 user sessions, subjects, or message bodies.
 
-## List and create calendar events
+### List and create calendar events
 
 Both calendar tools use the verified user's session and validate ownership and
 activity of `accountId` before contacting the calendar API. Omit `calendarId`
@@ -471,7 +600,7 @@ All tools log HTTP status codes when available, exception types, and stack
 locations. Request URLs, response bodies, sessions, and event subjects,
 descriptions, and locations are excluded from these logs.
 
-## Connect an IMAP mailbox or CalDAV calendar
+### Connect an IMAP mailbox or CalDAV calendar
 
 Call `connect_account` with required `serviceType` chosen from
 `AURINKO_ACCOUNT_SERVICE_TYPES` (by default Google, Office365, iCloud, IMAP and CalDav).
@@ -528,7 +657,7 @@ or an account absent from the user's account list produces the failure page with
 exposing user data in error logs. On success, the page says **Account connected. You can return
 to the chat.** The user can then call `list_accounts` again.
 
-## Disconnect an account
+### Disconnect an account
 
 Choose an account ID from `list_accounts` and call `disconnect_account`:
 
@@ -551,7 +680,7 @@ Other Aurinko failures return `Unable to disconnect the account.`
 The tool advertises `readOnlyHint: false`, `destructiveHint: true`, and
 `idempotentHint: false`.
 
-## Project layout
+### Project layout
 
 All application packages are under `com.yoxel.aurinko.mcp`:
 
@@ -569,7 +698,7 @@ The project uses the official [MCP Java SDK](https://github.com/modelcontextprot
 and [aurinko-java](https://github.com/Aurinko-Yoxel/aurinko-java), pinned to release
 `1.8.18` through JitPack. It uses no Spring dependencies.
 
-## Tests
+### Tests
 
 ```sh
 mvn test
@@ -586,3 +715,4 @@ tests use temporary local ports to verify authenticated `ping`, protected
 resource metadata, authorization server metadata, and registration/authorization
 flows through the login page and Aurinko callback, code exchange, refresh, and authenticated `ping`. Redirects are
 inspected through `Location` and are never followed.
+````
