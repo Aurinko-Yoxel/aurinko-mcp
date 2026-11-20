@@ -5,12 +5,15 @@ import com.yoxel.aurinko.apis.QueryParams;
 import com.yoxel.aurinko.bean.AurEvent;
 import com.yoxel.aurinko.bean.sub.EmailAddress;
 import com.yoxel.aurinko.bean.sub.EventDateTime;
+import com.yoxel.aurinko.mcp.paging.PageCursor;
+import com.yoxel.aurinko.mcp.paging.PageResult;
+import com.yoxel.aurinko.mcp.paging.PageTraversal;
 import lombok.RequiredArgsConstructor;
 
 import java.io.IOException;
 import java.time.OffsetDateTime;
 import java.time.format.DateTimeFormatter;
-import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 @RequiredArgsConstructor
@@ -19,33 +22,20 @@ public class AurinkoCalendarServiceImpl implements AurinkoCalendarService {
     private final AurinkoClientFactory clientFactory;
 
     @Override
-    public List<AurinkoEvent> listEvents(String userSession, long accountId, String calendarId,
-            OffsetDateTime timeMin, OffsetDateTime timeMax, int limit) throws AurinkoException {
+    public PageResult<AurinkoEvent> listEvents(String userSession, long accountId, String calendarId,
+            OffsetDateTime timeMin, OffsetDateTime timeMax, PageCursor start, int limit) throws AurinkoException {
         try (var service = clientFactory.create(userSession, accountId)) {
             String selectedCalendar = calendarId == null ? "primary" : calendarId;
             var events = service.calendars.calendarEvents(selectedCalendar);
             var query = QueryParams.of(QueryParams.qp("timeMin", timeMin.format(DateTimeFormatter.ISO_OFFSET_DATE_TIME)),
                     QueryParams.qp("timeMax", timeMax.format(DateTimeFormatter.ISO_OFFSET_DATE_TIME)));
-            List<AurinkoEvent> result = new ArrayList<>();
-            String pageToken = null;
-            while (result.size() < limit) {
-                var page = events.httpGet(events.entityPath() + "/range", query.add("pageToken", pageToken))
+            return PageTraversal.load(start, limit, token -> {
+                var page = events.httpGet(events.entityPath() + "/range", query.add("pageToken", token))
                         .parseAs(events.entityPageClass());
-                if (page.getRecords() == null || page.getRecords().length == 0) {
-                    break;
-                }
-                for (var event : page.getRecords()) {
-                    result.add(map(event, selectedCalendar));
-                    if (result.size() == limit) {
-                        return result;
-                    }
-                }
-                pageToken = page.getNextPageToken();
-                if (pageToken == null) {
-                    break;
-                }
-            }
-            return result;
+                var records = page.getRecords();
+                return new PageTraversal.Page<>(records == null ? List.of()
+                        : Arrays.stream(records).map(event -> map(event, selectedCalendar)).toList(), page.getNextPageToken());
+            });
         } catch (IOException | RuntimeException e) {
             throw new AurinkoException(e);
         }

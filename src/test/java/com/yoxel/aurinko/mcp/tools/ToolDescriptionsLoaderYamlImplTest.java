@@ -27,7 +27,9 @@ public class ToolDescriptionsLoaderYamlImplTest {
         assertThat(descriptions.getTools()).hasSize(8);
         assertThat(descriptions.tool("search_messages").isEnabled()).isTrue();
         assertThat(descriptions.tool("search_messages").getDescription())
-                .isEqualTo("Search email messages in one of the user's connected accounts");
+                .isEqualTo("Search email messages in one of the user's connected accounts. "
+                        + "If nextCursor is present, more results are available. For complete answers, totals, "
+                        + "counts or all matching records, call again with cursor until nextCursor is absent.");
         assertThat(descriptions.tool("search_messages").parameter("accountId")).contains("list_accounts");
         assertThat(descriptions.getServiceTypes()).containsKeys("Google", "Office365", "iCloud", "IMAP", "CalDav", "EWS");
     }

@@ -3,6 +3,9 @@ package com.yoxel.aurinko.mcp.aurinko;
 import com.yoxel.aurinko.apis.QueryParams;
 import com.yoxel.aurinko.bean.AurEmail;
 import com.yoxel.aurinko.bean.sub.EmailAddress;
+import com.yoxel.aurinko.mcp.paging.PageCursor;
+import com.yoxel.aurinko.mcp.paging.PageResult;
+import com.yoxel.aurinko.mcp.paging.PageTraversal;
 import lombok.RequiredArgsConstructor;
 
 import java.io.IOException;
@@ -20,12 +23,16 @@ public class AurinkoEmailServiceImpl implements AurinkoEmailService {
     private final AurinkoClientFactory clientFactory;
 
     @Override
-    public List<AurinkoEmailSummary> searchMessages(String userSession, long accountId, String query, int limit)
+    public PageResult<AurinkoEmailSummary> searchMessages(String userSession, long accountId, String query, PageCursor start, int limit)
             throws AurinkoException {
         try (var service = clientFactory.create(userSession, accountId)) {
             QueryParams parameters = query == null || query.isBlank() ? QueryParams.EMPTY : QueryParams.of("q", query);
-            var records = service.emails.loadPage(parameters).getRecords();
-            return records == null ? List.of() : Arrays.stream(records).limit(limit).map(this::summary).toList();
+            return PageTraversal.load(start, limit, token -> {
+                var page = service.emails.loadPage(parameters.add("pageToken", token));
+                var records = page.getRecords();
+                return new PageTraversal.Page<>(records == null ? List.of()
+                        : Arrays.stream(records).map(this::summary).toList(), page.getNextPageToken());
+            });
         } catch (IOException | RuntimeException e) {
             throw new AurinkoException(e);
         }

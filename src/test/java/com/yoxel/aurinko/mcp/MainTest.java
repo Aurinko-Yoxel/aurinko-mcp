@@ -1,6 +1,7 @@
 package com.yoxel.aurinko.mcp;
 
 import com.yoxel.aurinko.mcp.support.ListOnlyAccountService;
+import com.yoxel.aurinko.mcp.support.FakeEmailServer;
 import com.yoxel.aurinko.AurinkoService;
 import com.yoxel.aurinko.mcp.accounts.ConnectStateManagerJweImpl;
 import com.yoxel.aurinko.mcp.aurinko.AurinkoAccount;
@@ -33,6 +34,10 @@ import java.time.Clock;
 import java.time.Duration;
 import java.util.Base64;
 import java.util.List;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.stream.IntStream;
+import java.util.stream.Collectors;
 import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
@@ -231,6 +236,60 @@ public class MainTest {
                     .singleElement().satisfies(tool -> assertThat(tool.description()).isEqualTo("Custom search instructions"));
             assertThat(tools).filteredOn(tool -> "connect_account".equals(tool.name()))
                     .singleElement().satisfies(tool -> assertThat(tool.description()).contains("iCloud: Custom Apple instructions"));
+        }
+    }
+
+    @Test
+    void searchPaginationReadsAllMessagesExactlyOnceOverHttp() throws Exception {
+        try (var fake = new FakeEmailServer()) {
+            String first = IntStream.rangeClosed(1, 3).mapToObj(id -> "{\"id\":\"message-" + id + "\"}")
+                    .collect(Collectors.joining(","));
+            String second = IntStream.rangeClosed(4, 6).mapToObj(id -> "{\"id\":\"message-" + id + "\"}")
+                    .collect(Collectors.joining(","));
+            fake.respondPages("{\"records\":[" + first + "],\"nextPageToken\":\"private-next-page\"}",
+                    "{\"records\":[" + second + "]}");
+            server.stop();
+            var aurinkoConfig = fake.config();
+            var sdk = AurinkoService.createWithAppAuth(aurinkoConfig.getUrl(), aurinkoConfig.getClientId(), aurinkoConfig.getClientSecret());
+            var components = AurinkoComponents.create(aurinkoConfig, sdk, (ListOnlyAccountService) userId -> {
+                assertThat(userId).isEqualTo("user-1");
+                return List.of(new AurinkoAccount(42, "IMAP", "user@example.com", true));
+            });
+            server = JettyServerFactory.create(config, aurinkoConfig, components);
+            server.start();
+            baseUrl = "http://127.0.0.1:" + ((ServerConnector) server.getConnectors()[0]).getLocalPort();
+            var manager = new TokenManagerJweImpl(new JweHelper(config.getTokenKey(), Clock.systemUTC()), config.getMcpUrl());
+            String token = manager.createAccessToken(new McpPrincipal("user-1", "private-session", "client-1"));
+            var transport = HttpClientStreamableHttpTransport.builder(baseUrl).endpoint("/mcp")
+                    .requestBuilder(HttpRequest.newBuilder().header("Authorization", "Bearer " + token)).build();
+            try (var client = McpClient.sync(transport).requestTimeout(Duration.ofSeconds(10)).build()) {
+                client.initialize();
+                List<String> ids = new ArrayList<>();
+                String cursor = null;
+                for (int page = 0; page < 3; page++) {
+                    var arguments = new HashMap<String, Object>(Map.of("accountId", 42, "limit", 2, "query", "from:alice@example.com"));
+                    if (cursor != null) {
+                        arguments.put("cursor", cursor);
+                    }
+                    var result = client.callTool(McpSchema.CallToolRequest.builder("search_messages").arguments(arguments).build());
+                    assertThat(result.isError()).isFalse();
+                    String text = ((McpSchema.TextContent) result.content().get(0)).text();
+                    assertThat(text).doesNotContain("private-next-page");
+                    var response = McpJsonDefaults.getMapper().readValue(text, new TypeRef<Map<String, Object>>() {});
+                    var items = (List<Map<String, Object>>) response.get("items");
+                    assertThat(items).hasSize(2);
+                    items.forEach(item -> ids.add((String) item.get("id")));
+                    cursor = (String) response.get("nextCursor");
+                    if (page < 2) {
+                        assertThat(cursor).isNotBlank();
+                    } else {
+                        assertThat(response).doesNotContainKey("nextCursor");
+                    }
+                }
+                assertThat(ids).containsExactly("message-1", "message-2", "message-3", "message-4", "message-5", "message-6")
+                        .doesNotHaveDuplicates();
+                assertThat(fake.getRequests()).isEqualTo(4);
+            }
         }
     }
 

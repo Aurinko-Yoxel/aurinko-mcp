@@ -530,7 +530,7 @@ messages. An unavailable or inaccessible account returns `isError: true` with
 
 | Tool | Arguments | Result |
 | --- | --- | --- |
-| `search_messages` | Required integer `accountId`; optional string `query`; optional integer `limit` from 1 to 50, default 20 | Text containing a JSON array of message summaries |
+| `search_messages` | Required integer `accountId`; optional string `query`; optional integer `limit` from 1 to 50, default 20; optional string `cursor` | Text containing JSON with `items` and optional `nextCursor` |
 | `get_message` | Required integer `accountId` and string `messageId` | Text containing a JSON message with body and CC recipients |
 
 Examples of MCP tool call payloads:
@@ -543,11 +543,30 @@ Examples of MCP tool call payloads:
 {"jsonrpc":"2.0","id":5,"method":"tools/call","params":{"name":"get_message","arguments":{"accountId":42,"messageId":"message-1"}}}
 ```
 
-Search reads only the first Aurinko page and returns at most `limit` records;
-it does not follow `nextPageToken`. An omitted or blank query sends no `q`
-parameter. Summaries contain `id`, `threadId`, `subject`, `from`, `to`,
+Search returns at most `limit` records and follows Aurinko pages as needed,
+with at most five Aurinko requests per tool call. An omitted or blank query sends
+no `q` parameter. Summaries contain `id`, `threadId`, `subject`, `from`, `to`,
 `receivedAt`, and `hasAttachments`. Addresses are formatted as `Name <address>`
 or a plain address; dates use ISO-8601 strings.
+
+Both `search_messages` and `list_events` return text containing this JSON shape:
+
+```json
+{"items":[{"id":"..."}],"nextCursor":"<encrypted cursor>"}
+```
+
+`nextCursor` is omitted on the final page. When it is present, results are
+incomplete: pass it as the next call's `cursor` and keep the same account and
+search/calendar parameters. Continue until `nextCursor` disappears for complete
+answers, summaries, totals, counts or requests for all matching records.
+`limit` may change between calls. A call can return fewer than `limit` items,
+including none, with a continuation after the five-request limit.
+
+Cursors expire after one hour and bind the verified user ID, account ID, tool
+name and request parameters. Calendar bounds are normalized to UTC ISO-8601 for
+scope matching. Invalid, expired or mismatched cursors return
+`Invalid or expired cursor`. Aurinko page tokens and offsets remain inside an
+encrypted JWE and are not exposed as plain tokens.
 
 Reading a message also returns `cc`, `body`, and `bodyTruncated`. Bodies longer
 than 50,000 characters are cut to that length with `bodyTruncated: true`.
@@ -567,7 +586,7 @@ to use the primary calendar.
 
 | Tool | Arguments | Result |
 | --- | --- | --- |
-| `list_events` | Required integer `accountId`, strings `timeMin` and `timeMax`; optional string `calendarId` and integer `limit` (1–50, default 20) | Text containing a JSON array of events |
+| `list_events` | Required integer `accountId`, strings `timeMin` and `timeMax`; optional strings `calendarId` and `cursor`, and integer `limit` (1–50, default 20) | Text containing JSON with `items` and optional `nextCursor` |
 | `create_event` | Required integer `accountId`, nonblank string `subject`, strings `start` and `end`; optional strings `calendarId`, `description`, and `location` | Text containing JSON `{"id":"..."}` |
 
 Times must be ISO-8601 date-times with an explicit offset, such as
@@ -585,9 +604,9 @@ must be later than `timeMin`, and the range cannot exceed 62 days. For creation,
 
 Event results contain `id`, `calendarId`, `subject`, `description`, `location`,
 `start`, `end`, `allDay`, `organizer`, and `htmlLink`. Timed events return ISO-8601
-date-times; all-day events return dates without times. Listing stops when the
-requested limit is reached or an empty page is received. No further page is
-requested once the limit is reached.
+date-times; all-day events return dates without times. Listing follows pages,
+including empty pages with a next-page token, until the requested limit or five
+Aurinko requests are reached. Use `nextCursor` to continue when present.
 
 Creation sends no attendees and does not send invitations to other people.
 The five read tools advertise `readOnlyHint: true`. `create_event` advertises

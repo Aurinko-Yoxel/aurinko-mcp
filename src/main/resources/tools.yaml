@@ -9,8 +9,9 @@ tools:
     parameters: {}
   search_messages:
     enabled: true
-    description: "Search email messages in one of the user's connected accounts"
+    description: "Search email messages in one of the user's connected accounts. If nextCursor is present, more results are available. For complete answers, totals, counts or all matching records, call again with cursor until nextCursor is absent."
     parameters:
+      cursor: "Cursor from the previous response; omit for the first page and keep the same request parameters."
       accountId: "Account ID from list_accounts."
       query: "Search query, for example: from:someone@example.com after:01/01/2026"
       limit: "Maximum number of messages to return."
@@ -22,8 +23,9 @@ tools:
       messageId: "ID of the email message to read."
   list_events:
     enabled: true
-    description: "List calendar events in a time range for one of the user's connected accounts"
+    description: "List calendar events in a time range for one of the user's connected accounts. If nextCursor is present, more results are available. For complete answers, totals, counts or all matching records, call again with cursor until nextCursor is absent."
     parameters:
+      cursor: "Cursor from the previous response; omit for the first page and keep the same request parameters."
       accountId: "Account ID from list_accounts."
       calendarId: "Calendar ID; omit to use the default calendar."
       timeMin: "ISO-8601 date-time with offset"

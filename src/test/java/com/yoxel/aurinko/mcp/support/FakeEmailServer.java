@@ -9,6 +9,7 @@ import java.net.InetSocketAddress;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicInteger;
 
 public class FakeEmailServer implements AutoCloseable {
@@ -16,7 +17,9 @@ public class FakeEmailServer implements AutoCloseable {
     private final HttpServer server;
     private volatile int status = 200;
     private volatile String body = "{\"records\":[]}";
+    private volatile String nextBody;
     private volatile URI requestUri;
+    private final List<URI> requestUris = new CopyOnWriteArrayList<>();
     private volatile Headers requestHeaders;
     private final AtomicInteger requests = new AtomicInteger();
 
@@ -25,10 +28,13 @@ public class FakeEmailServer implements AutoCloseable {
         server.createContext("/v1/email/messages", exchange -> {
             requests.incrementAndGet();
             requestUri = exchange.getRequestURI();
+            requestUris.add(requestUri);
             requestHeaders = new Headers();
             requestHeaders.putAll(exchange.getRequestHeaders());
             exchange.getRequestBody().readAllBytes();
-            byte[] bytes = body.getBytes(StandardCharsets.UTF_8);
+            String response = nextBody != null && requestUri.getRawQuery() != null
+                    && requestUri.getRawQuery().contains("pageToken=") ? nextBody : body;
+            byte[] bytes = response.getBytes(StandardCharsets.UTF_8);
             exchange.getResponseHeaders().set("Content-Type", "application/json");
             exchange.sendResponseHeaders(status, bytes.length);
             try (var output = exchange.getResponseBody()) {
@@ -46,6 +52,15 @@ public class FakeEmailServer implements AutoCloseable {
     public void respond(int status, String body) {
         this.status = status;
         this.body = body;
+    }
+
+    public void respondPages(String first, String next) {
+        respond(200, first);
+        this.nextBody = next;
+    }
+
+    public List<URI> getRequestUris() {
+        return List.copyOf(requestUris);
     }
 
     public URI getRequestUri() {
