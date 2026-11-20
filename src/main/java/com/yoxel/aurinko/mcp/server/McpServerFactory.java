@@ -26,11 +26,12 @@ public class McpServerFactory {
                 .build();
     }
 
-    public static McpSyncServer create(HttpServletStreamableServerTransportProvider transport, List<McpTool> tools) {
+    public static McpSyncServer create(HttpServletStreamableServerTransportProvider transport, List<McpTool> tools, String instructions) {
         String version = Main.class.getPackage().getImplementationVersion();
         var builder = McpServer.sync(transport)
                 .serverInfo("aurinko-mcp", version != null ? version : "development")
-                .capabilities(McpSchema.ServerCapabilities.builder().tools(false).build());
+                .capabilities(McpSchema.ServerCapabilities.builder().tools(false).build())
+                .instructions(instructions);
         for (McpTool tool : tools) {
             var specification = tool.specification();
             if ("connect_account".equals(specification.tool().name())) {

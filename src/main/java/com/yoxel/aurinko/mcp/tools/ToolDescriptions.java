@@ -9,8 +9,10 @@ public class ToolDescriptions {
 
     Map<String, ToolDescription> tools;
     Map<String, String> serviceTypes;
+    String instructions;
 
-    public ToolDescriptions(Map<String, ToolDescription> tools, Map<String, String> serviceTypes) {
+    public ToolDescriptions(Map<String, ToolDescription> tools, Map<String, String> serviceTypes, String instructions) {
+        this.instructions = instructions;
         this.tools = Map.copyOf(tools);
         this.serviceTypes = Map.copyOf(serviceTypes);
     }

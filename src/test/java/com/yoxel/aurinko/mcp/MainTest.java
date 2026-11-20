@@ -1,6 +1,7 @@
 package com.yoxel.aurinko.mcp;
 
 import com.yoxel.aurinko.mcp.support.ListOnlyAccountService;
+import com.yoxel.aurinko.mcp.tools.ToolDescriptionsLoaderYamlImpl;
 import com.yoxel.aurinko.mcp.support.FakeEmailServer;
 import com.yoxel.aurinko.AurinkoService;
 import com.yoxel.aurinko.mcp.accounts.ConnectStateManagerJweImpl;
@@ -91,6 +92,7 @@ public class MainTest {
             var initialized = client.initialize();
             assertThat(initialized.serverInfo().name()).isEqualTo("aurinko-mcp");
             assertThat(initialized.capabilities().tools()).isNotNull();
+            assertThat(initialized.instructions()).isEqualTo(new ToolDescriptionsLoaderYamlImpl().load(null).getInstructions());
 
             var tools = client.listTools().tools();
             assertThat(tools).extracting(McpSchema.Tool::name).containsExactlyInAnyOrder(
@@ -218,7 +220,7 @@ public class MainTest {
     @Test
     void descriptionsOverrideDisablesToolAndChangesTexts(@TempDir Path directory) throws Exception {
         Path file = directory.resolve("tools.yaml");
-        Files.writeString(file, "tools:\n  create_event:\n    enabled: false\n  search_messages:\n"
+        Files.writeString(file, "instructions: Custom server instructions\ntools:\n  create_event:\n    enabled: false\n  search_messages:\n"
                 + "    description: Custom search instructions\nserviceTypes:\n  iCloud: Custom Apple instructions\n");
         server.stop();
         config = new ServerConfig(config.getHost(), config.getPort(), config.getPublicUrl(),
@@ -229,7 +231,7 @@ public class MainTest {
         var transport = HttpClientStreamableHttpTransport.builder(baseUrl).endpoint("/mcp")
                 .requestBuilder(HttpRequest.newBuilder().header("Authorization", "Bearer " + token)).build();
         try (var client = McpClient.sync(transport).requestTimeout(Duration.ofSeconds(10)).build()) {
-            client.initialize();
+            assertThat(client.initialize().instructions()).isEqualTo("Custom server instructions");
             var tools = client.listTools().tools();
             assertThat(tools).hasSize(7).extracting(McpSchema.Tool::name).doesNotContain("create_event");
             assertThat(tools).filteredOn(tool -> "search_messages".equals(tool.name()))
