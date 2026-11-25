@@ -1,6 +1,7 @@
 package com.yoxel.aurinko.mcp.aurinko;
 
 import com.yoxel.aurinko.mcp.support.FakeCalendarServer;
+import com.yoxel.aurinko.mcp.paging.PageCursor;
 import io.modelcontextprotocol.json.McpJsonDefaults;
 import io.modelcontextprotocol.json.TypeRef;
 import org.junit.jupiter.api.Test;
@@ -39,18 +40,18 @@ public class AurinkoCalendarServiceImplTest {
             var service = new AurinkoCalendarServiceImpl(new AurinkoClientFactoryImpl(fake.config()));
 
             var result = assertTimeoutPreemptively(Duration.ofSeconds(5),
-                    () -> service.listEvents("private-session", 42, null, timeMin, timeMax, 1));
+                    () -> service.listEvents("private-session", 42, null, timeMin, timeMax, null, 1));
 
             assertThat(fake.getRequestUri().getPath()).isEqualTo("/v1/calendars/primary/events/range");
             assertThat(query(fake.getRequestUri())).containsEntry("timeMin", timeMin.format(DateTimeFormatter.ISO_OFFSET_DATE_TIME))
                     .containsEntry("timeMax", timeMax.format(DateTimeFormatter.ISO_OFFSET_DATE_TIME)).doesNotContainKey("pageToken");
             assertThat(fake.getRequests()).isEqualTo(1);
-            assertThat(result).hasSize(1);
-            assertThat(result.get(0).getCalendarId()).isEqualTo("primary");
-            assertThat(OffsetDateTime.parse(result.get(0).getStart()).isEqual(timeMin)).isTrue();
-            assertThat(result.get(0).getOrganizer()).isEqualTo("Alice <alice@example.com>");
-            assertThat(result.get(0).isAllDay()).isFalse();
-            assertThat(result.get(0).toString()).doesNotContain("Private subject", "Private description", "Private location");
+            assertThat(result.getItems()).hasSize(1);
+            assertThat(result.getItems().get(0).getCalendarId()).isEqualTo("primary");
+            assertThat(OffsetDateTime.parse(result.getItems().get(0).getStart()).isEqual(timeMin)).isTrue();
+            assertThat(result.getItems().get(0).getOrganizer()).isEqualTo("Alice <alice@example.com>");
+            assertThat(result.getItems().get(0).isAllDay()).isFalse();
+            assertThat(result.getItems().get(0).toString()).doesNotContain("Private subject", "Private description", "Private location");
         }
     }
 
@@ -61,26 +62,35 @@ public class AurinkoCalendarServiceImplTest {
                     "{\"records\":[" + event + "," + event + "],\"nextPageToken\":\"another\"}");
             var service = new AurinkoCalendarServiceImpl(new AurinkoClientFactoryImpl(fake.config()));
 
-            var result = service.listEvents("private-session", 42, "calendar-1", timeMin, timeMax, 2);
+            var result = service.listEvents("private-session", 42, "calendar-1", timeMin, timeMax, null, 2);
 
-            assertThat(result).hasSize(2);
+            assertThat(result.getItems()).hasSize(2);
             assertThat(fake.getRequests()).isEqualTo(2);
             assertThat(fake.getRequestUri().getPath()).isEqualTo("/v1/calendars/calendar-1/events/range");
+            assertThat(query(fake.getRequestUri())).containsEntry("pageToken", "next-token");
+            assertThat(result.getNext()).isEqualTo(new PageCursor("next-token", 1));
+            assertThat(fake.getRequestUris()).allSatisfy(uri -> assertThat(query(uri))
+                    .containsEntry("timeMin", timeMin.format(DateTimeFormatter.ISO_OFFSET_DATE_TIME))
+                    .containsEntry("timeMax", timeMax.format(DateTimeFormatter.ISO_OFFSET_DATE_TIME)));
+            var last = service.listEvents("private-session", 42, "calendar-1", timeMin, timeMax, result.getNext(), 1);
+            assertThat(last.getItems()).hasSize(1);
+            assertThat(last.getNext()).isEqualTo(new PageCursor("another", 0));
             assertThat(query(fake.getRequestUri())).containsEntry("pageToken", "next-token");
         }
     }
 
     @Test
-    void emptyPageStopsDespiteNextToken() throws Exception {
+    void emptyPagesStopAtRequestLimit() throws Exception {
         try (var fake = new FakeCalendarServer()) {
             fake.respond(200, "{\"records\":[],\"nextPageToken\":\"next-token\"}");
             var service = new AurinkoCalendarServiceImpl(new AurinkoClientFactoryImpl(fake.config()));
 
             var result = assertTimeoutPreemptively(Duration.ofSeconds(5),
-                    () -> service.listEvents("private-session", 42, null, timeMin, timeMax, 20));
+                    () -> service.listEvents("private-session", 42, null, timeMin, timeMax, null, 20));
 
-            assertThat(result).isEmpty();
-            assertThat(fake.getRequests()).isEqualTo(1);
+            assertThat(result.getItems()).isEmpty();
+            assertThat(fake.getRequests()).isEqualTo(5);
+            assertThat(result.getNext()).isNotNull();
         }
     }
 
@@ -91,12 +101,12 @@ public class AurinkoCalendarServiceImplTest {
                     + "\"end\":{\"dateOnly\":\"2026-11-18\"}}]}");
             var service = new AurinkoCalendarServiceImpl(new AurinkoClientFactoryImpl(fake.config()));
 
-            var result = service.listEvents("private-session", 42, null, timeMin, timeMax, 20);
+            var result = service.listEvents("private-session", 42, null, timeMin, timeMax, null, 20);
 
-            assertThat(result).hasSize(1);
-            assertThat(result.get(0).isAllDay()).isTrue();
-            assertThat(result.get(0).getStart()).isEqualTo("2026-11-17");
-            assertThat(result.get(0).getEnd()).isEqualTo("2026-11-18");
+            assertThat(result.getItems()).hasSize(1);
+            assertThat(result.getItems().get(0).isAllDay()).isTrue();
+            assertThat(result.getItems().get(0).getStart()).isEqualTo("2026-11-17");
+            assertThat(result.getItems().get(0).getEnd()).isEqualTo("2026-11-18");
         }
     }
 
@@ -111,12 +121,32 @@ public class AurinkoCalendarServiceImplTest {
 
             assertThat(id).isEqualTo("created-event");
             assertThat(fake.getRequestMethod()).isEqualTo("POST");
+            assertThat(fake.getRequestUri().getRawQuery()).isNull();
             assertThat(fake.getRequestUri().getPath()).isEqualTo("/v1/calendars/primary/events");
             var body = McpJsonDefaults.getMapper().readValue(fake.getRequestBody(), new TypeRef<Map<String, Object>>() {});
             assertThat(body).containsEntry("subject", draft.getSubject()).containsEntry("description", draft.getDescription())
                     .containsEntry("location", draft.getLocation()).doesNotContainKeys("attendees", "meetingInfo");
             assertThat(OffsetDateTime.parse((String) ((Map<?, ?>) body.get("start")).get("dateTime")).isEqual(timeMin)).isTrue();
             assertThat(OffsetDateTime.parse((String) ((Map<?, ?>) body.get("end")).get("dateTime")).isEqual(timeMax)).isTrue();
+        }
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {true, false})
+    void createSendsMeetingAttendeesAndNotificationChoice(boolean notify) throws Exception {
+        try (var fake = new FakeCalendarServer()) {
+            fake.respond(201, "{\"id\":\"created-event\"}");
+            var service = new AurinkoCalendarServiceImpl(new AurinkoClientFactoryImpl(fake.config()));
+            var draft = new AurinkoEventDraft("Subject", null, null, timeMin, timeMax,
+                    List.of(new AurinkoEventAttendee("alex@example.com", "Alex"), new AurinkoEventAttendee("bob@example.com", null)), notify);
+            assertThat(service.createEvent("session", 42, null, draft)).isEqualTo("created-event");
+            assertThat(query(fake.getRequestUri())).containsEntry("notifyAttendees", String.valueOf(notify));
+            var body = McpJsonDefaults.getMapper().readValue(fake.getRequestBody(), new TypeRef<Map<String, Object>>() {});
+            var meeting = (Map<?, ?>) body.get("meetingInfo");
+            var attendees = (List<Map<String, Object>>) meeting.get("attendees");
+            assertThat(attendees).hasSize(2);
+            assertThat(attendees.get(0)).containsEntry("emailAddress", Map.of("address", "alex@example.com", "name", "Alex"));
+            assertThat(attendees.get(1)).containsEntry("emailAddress", Map.of("address", "bob@example.com"));
         }
     }
 
@@ -128,7 +158,7 @@ public class AurinkoCalendarServiceImplTest {
             var service = new AurinkoCalendarServiceImpl(new AurinkoClientFactoryImpl(fake.config()));
 
             if ("list".equals(operation)) {
-                assertThatThrownBy(() -> service.listEvents("private-session", 42, null, timeMin, timeMax, 20))
+                assertThatThrownBy(() -> service.listEvents("private-session", 42, null, timeMin, timeMax, null, 20))
                         .isInstanceOf(AurinkoException.class);
             } else {
                 assertThatThrownBy(() -> service.createEvent("private-session", 42, null,

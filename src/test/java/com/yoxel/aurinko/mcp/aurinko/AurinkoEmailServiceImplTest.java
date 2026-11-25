@@ -1,6 +1,7 @@
 package com.yoxel.aurinko.mcp.aurinko;
 
 import com.yoxel.aurinko.mcp.support.FakeEmailServer;
+import com.yoxel.aurinko.mcp.paging.PageCursor;
 import io.modelcontextprotocol.json.McpJsonDefaults;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -10,6 +11,11 @@ import org.junit.jupiter.params.provider.ValueSource;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import com.yoxel.aurinko.AurinkoService;
+import com.yoxel.aurinko.AurUserSessionAuthorization;
+import io.modelcontextprotocol.json.TypeRef;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.time.Instant;
 import java.util.Arrays;
 import java.util.List;
@@ -39,21 +45,45 @@ public class AurinkoEmailServiceImplTest {
             String query = "from:alice@example.com after:01/01/2026 & subject:hello";
 
             var results = assertTimeoutPreemptively(Duration.ofSeconds(5),
-                    () -> service.searchMessages("private-session", 42, query, 1));
+                    () -> service.searchMessages("private-session", 42, query, null, 1));
 
-            assertThat(results).hasSize(1);
+            assertThat(results.getItems()).hasSize(1);
             assertThat(fake.getRequests()).isEqualTo(1);
             var parameters = Arrays.stream(fake.getRequestUri().getRawQuery().split("&"))
                     .map(value -> value.split("=", 2)).collect(Collectors.toMap(pair -> pair[0],
                             pair -> URLDecoder.decode(pair[1], StandardCharsets.UTF_8)));
             assertThat(parameters).containsEntry("q", query).doesNotContainKey("pageToken");
-            assertThat(results.get(0).getFrom()).isEqualTo("Alice <alice@example.com>");
-            assertThat(results.get(0).getTo()).containsExactly("Bob <bob@example.com>", "other@example.com");
-            assertThat(results.get(0).getId()).isEqualTo("message-1");
-            assertThat(results.get(0).getThreadId()).isEqualTo("thread-1");
-            assertThat(results.get(0).getSubject()).isEqualTo("Mail subject");
-            assertThat(results.get(0).isHasAttachments()).isTrue();
-            assertThat(Instant.parse(results.get(0).getReceivedAt())).isEqualTo(Instant.parse("2026-11-17T10:00:00Z"));
+            assertThat(results.getItems().get(0).getFrom()).isEqualTo("Alice <alice@example.com>");
+            assertThat(results.getItems().get(0).getTo()).containsExactly("Bob <bob@example.com>", "other@example.com");
+            assertThat(results.getItems().get(0).getId()).isEqualTo("message-1");
+            assertThat(results.getItems().get(0).getThreadId()).isEqualTo("thread-1");
+            assertThat(results.getItems().get(0).getSubject()).isEqualTo("Mail subject");
+            assertThat(results.getItems().get(0).isHasAttachments()).isTrue();
+            assertThat(Instant.parse(results.getItems().get(0).getReceivedAt())).isEqualTo(Instant.parse("2026-11-17T10:00:00Z"));
+        }
+    }
+
+    @Test
+    void paginationPreservesQueryAndResumesInsideAurinkoPage() throws Exception {
+        try (var fake = new FakeEmailServer()) {
+            fake.respondPages("{\"records\":[" + message + "],\"nextPageToken\":\"private-next-token\"}",
+                    "{\"records\":[" + message + "," + message + "]}");
+            var service = new AurinkoEmailServiceImpl(new AurinkoClientFactoryImpl(fake.config()));
+            String query = "from:alice@example.com & subject:hello";
+            var first = service.searchMessages("private-session", 42, query, null, 2);
+            assertThat(first.getItems()).hasSize(2);
+            assertThat(first.getNext()).isEqualTo(new PageCursor("private-next-token", 1));
+            var last = service.searchMessages("private-session", 42, query, first.getNext(), 20);
+            assertThat(last.getItems()).hasSize(1);
+            assertThat(last.getNext()).isNull();
+            assertThat(fake.getRequestUris()).hasSize(3).allSatisfy(uri -> {
+                var parameters = Arrays.stream(uri.getRawQuery().split("&")).map(value -> value.split("=", 2))
+                        .collect(Collectors.toMap(pair -> pair[0], pair -> URLDecoder.decode(pair[1], StandardCharsets.UTF_8)));
+                assertThat(parameters).containsEntry("q", query);
+            });
+            assertThat(fake.getRequestUris().get(0).getRawQuery()).doesNotContain("pageToken");
+            assertThat(fake.getRequestUris().subList(1, 3)).allSatisfy(uri ->
+                    assertThat(URLDecoder.decode(uri.getRawQuery(), StandardCharsets.UTF_8)).contains("pageToken=private-next-token"));
         }
     }
 
@@ -64,8 +94,55 @@ public class AurinkoEmailServiceImplTest {
         try (var fake = new FakeEmailServer()) {
             var service = new AurinkoEmailServiceImpl(new AurinkoClientFactoryImpl(fake.config()));
 
-            assertThat(service.searchMessages("private-session", 42, query, 20)).isEmpty();
+            assertThat(service.searchMessages("private-session", 42, query, null, 20).getItems()).isEmpty();
             assertThat(fake.getRequestUri().getRawQuery()).isNull();
+        }
+    }
+
+    @Test
+    void sendPostsRecipientsAndPlainTextBody() throws Exception {
+        try (var fake = new FakeEmailServer()) {
+            fake.respond(201, "{\"id\":\"sent-42\"}");
+            var service = new AurinkoEmailServiceImpl(new AurinkoClientFactoryImpl(fake.config()));
+            var draft = new AurinkoEmailDraft(List.of("alex@example.com"), List.of("copy@example.com"),
+                    "Private subject", "Plain text <tag>\nSecond line");
+            assertThat(service.sendMessage("private-session", 42, draft)).isEqualTo("sent-42");
+            assertThat(fake.getRequestMethod()).isEqualTo("POST");
+            assertThat(fake.getRequestUri().getPath()).isEqualTo("/v1/email/messages");
+            assertThat(fake.getRequestUri().getRawQuery()).contains("bodyType=text");
+            var body = McpJsonDefaults.getMapper().readValue(fake.getRequestBody(), new TypeRef<Map<String, Object>>() {});
+            assertThat(body).containsEntry("to", List.of(Map.of("address", "alex@example.com")))
+                    .containsEntry("cc", List.of(Map.of("address", "copy@example.com")))
+                    .containsEntry("subject", draft.getSubject()).containsEntry("body", draft.getBody());
+            assertThat(fake.getHeader("X-Aurinko-Session")).isEqualTo("private-session");
+            assertThat(fake.getHeader("X-Aurinko-Account-Id")).isEqualTo("42");
+            assertThat(fake.getHeader("Authorization")).isNull();
+            assertThat(fake.getRequests()).isEqualTo(1);
+        }
+    }
+
+    @Test
+    void sendReadTimeoutDoesNotRetry() throws Exception {
+        var release = new CountDownLatch(1);
+        var attempts = new AtomicInteger();
+        try (var fake = new FakeEmailServer()) {
+            fake.blockResponsesUntil(release);
+            AurinkoClientFactory factory = (session, accountId) -> AurinkoService.create(fake.config().getUrl(), request -> {
+                new AurUserSessionAuthorization(session).intercept(request);
+                request.setReadTimeout(100);
+                attempts.incrementAndGet();
+                assertThat(request.getNumberOfRetries()).isZero();
+            }, Map.of("X-Aurinko-Account-Id", String.valueOf(accountId)), "test");
+            var service = new AurinkoEmailServiceImpl(factory);
+            try {
+                assertTimeoutPreemptively(Duration.ofSeconds(5), () -> assertThatThrownBy(() -> service.sendMessage("session", 42,
+                        new AurinkoEmailDraft(List.of("alex@example.com"), List.of(), "Subject", "Text")))
+                        .isInstanceOf(AurinkoException.class));
+                assertThat(attempts).hasValue(1);
+                assertThat(fake.getRequests()).isEqualTo(1);
+            } finally {
+                release.countDown();
+            }
         }
     }
 
@@ -109,7 +186,7 @@ public class AurinkoEmailServiceImplTest {
             var service = new AurinkoEmailServiceImpl(new AurinkoClientFactoryImpl(fake.config()));
 
             if ("search".equals(operation)) {
-                assertThatThrownBy(() -> service.searchMessages("private-session", 42, "query", 20))
+                assertThatThrownBy(() -> service.searchMessages("private-session", 42, "query", null, 20))
                         .isInstanceOf(AurinkoException.class);
             } else {
                 assertThatThrownBy(() -> service.getMessage("private-session", 42, "message-1"))

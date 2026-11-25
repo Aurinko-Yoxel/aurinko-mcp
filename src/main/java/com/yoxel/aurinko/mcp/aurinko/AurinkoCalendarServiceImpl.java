@@ -4,13 +4,18 @@ import com.google.api.client.util.DateTime;
 import com.yoxel.aurinko.apis.QueryParams;
 import com.yoxel.aurinko.bean.AurEvent;
 import com.yoxel.aurinko.bean.sub.EmailAddress;
+import com.yoxel.aurinko.bean.sub.Attendee;
+import com.yoxel.aurinko.bean.sub.MeetingInfo;
 import com.yoxel.aurinko.bean.sub.EventDateTime;
+import com.yoxel.aurinko.mcp.paging.PageCursor;
+import com.yoxel.aurinko.mcp.paging.PageResult;
+import com.yoxel.aurinko.mcp.paging.PageTraversal;
 import lombok.RequiredArgsConstructor;
 
 import java.io.IOException;
 import java.time.OffsetDateTime;
 import java.time.format.DateTimeFormatter;
-import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 @RequiredArgsConstructor
@@ -19,33 +24,20 @@ public class AurinkoCalendarServiceImpl implements AurinkoCalendarService {
     private final AurinkoClientFactory clientFactory;
 
     @Override
-    public List<AurinkoEvent> listEvents(String userSession, long accountId, String calendarId,
-            OffsetDateTime timeMin, OffsetDateTime timeMax, int limit) throws AurinkoException {
+    public PageResult<AurinkoEvent> listEvents(String userSession, long accountId, String calendarId,
+            OffsetDateTime timeMin, OffsetDateTime timeMax, PageCursor start, int limit) throws AurinkoException {
         try (var service = clientFactory.create(userSession, accountId)) {
             String selectedCalendar = calendarId == null ? "primary" : calendarId;
             var events = service.calendars.calendarEvents(selectedCalendar);
             var query = QueryParams.of(QueryParams.qp("timeMin", timeMin.format(DateTimeFormatter.ISO_OFFSET_DATE_TIME)),
                     QueryParams.qp("timeMax", timeMax.format(DateTimeFormatter.ISO_OFFSET_DATE_TIME)));
-            List<AurinkoEvent> result = new ArrayList<>();
-            String pageToken = null;
-            while (result.size() < limit) {
-                var page = events.httpGet(events.entityPath() + "/range", query.add("pageToken", pageToken))
+            return PageTraversal.load(start, limit, token -> {
+                var page = events.httpGet(events.entityPath() + "/range", query.add("pageToken", token))
                         .parseAs(events.entityPageClass());
-                if (page.getRecords() == null || page.getRecords().length == 0) {
-                    break;
-                }
-                for (var event : page.getRecords()) {
-                    result.add(map(event, selectedCalendar));
-                    if (result.size() == limit) {
-                        return result;
-                    }
-                }
-                pageToken = page.getNextPageToken();
-                if (pageToken == null) {
-                    break;
-                }
-            }
-            return result;
+                var records = page.getRecords();
+                return new PageTraversal.Page<>(records == null ? List.of()
+                        : Arrays.stream(records).map(event -> map(event, selectedCalendar)).toList(), page.getNextPageToken());
+            });
         } catch (IOException | RuntimeException e) {
             throw new AurinkoException(e);
         }
@@ -61,7 +53,22 @@ public class AurinkoCalendarServiceImpl implements AurinkoCalendarService {
             event.setLocation(draft.getLocation());
             event.setStart(dateTime(draft.getStart()));
             event.setEnd(dateTime(draft.getEnd()));
-            String id = service.calendars.calendarEvents(calendarId == null ? "primary" : calendarId).create(event).getId();
+            var query = QueryParams.EMPTY;
+            if (!draft.getAttendees().isEmpty()) {
+                var meeting = new MeetingInfo();
+                meeting.setAttendees(draft.getAttendees().stream().map(value -> {
+                    var address = new EmailAddress();
+                    address.setAddress(value.getEmail());
+                    address.setName(value.getName());
+                    var attendee = new Attendee();
+                    attendee.setEmailAddress(address);
+                    attendee.setType("required");
+                    return attendee;
+                }).toList());
+                event.setMeetingInfo(meeting);
+                query = query.add("notifyAttendees", draft.getNotifyAttendees());
+            }
+            String id = service.calendars.calendarEvents(calendarId == null ? "primary" : calendarId).create(event, query).getId();
             if (id == null || id.isBlank()) {
                 throw new AurinkoException();
             }

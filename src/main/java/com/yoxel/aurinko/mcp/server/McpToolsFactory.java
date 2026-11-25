@@ -13,6 +13,7 @@ import com.yoxel.aurinko.mcp.tools.ListEventsTool;
 import com.yoxel.aurinko.mcp.tools.McpTool;
 import com.yoxel.aurinko.mcp.tools.PingTool;
 import com.yoxel.aurinko.mcp.tools.SearchMessagesTool;
+import com.yoxel.aurinko.mcp.tools.SendMessageTool;
 import io.modelcontextprotocol.json.McpJsonMapper;
 
 import java.util.List;
@@ -28,13 +29,14 @@ public class McpToolsFactory {
         var catalog = new ServiceTypeCatalog(descriptions.getServiceTypes());
         List<McpTool> tools = List.of(new PingTool(descriptions.tool("ping")),
                 new ListAccountsTool(aurinko.getAccountService(), jsonMapper, descriptions.tool("list_accounts")),
-                new SearchMessagesTool(validator, aurinko.getEmailService(), jsonMapper, descriptions.tool("search_messages")),
+                new SearchMessagesTool(validator, aurinko.getEmailService(), jsonMapper, descriptions.tool("search_messages"), oauth.getPageCursorManager()),
                 new GetMessageTool(validator, aurinko.getEmailService(), jsonMapper, descriptions.tool("get_message")),
-                new ListEventsTool(validator, aurinko.getCalendarService(), jsonMapper, descriptions.tool("list_events")),
+                new ListEventsTool(validator, aurinko.getCalendarService(), jsonMapper, descriptions.tool("list_events"), oauth.getPageCursorManager()),
                 new CreateEventTool(validator, aurinko.getCalendarService(), jsonMapper, descriptions.tool("create_event")),
                 new ConnectAccountTool(oauth.getConnectStateManager(), config, jsonMapper, aurinkoConfig.getAccountServiceTypes(),
                         catalog, descriptions.tool("connect_account")),
-                new DisconnectAccountTool(validator, aurinko.getAccountService(), jsonMapper, descriptions.tool("disconnect_account")));
+                new DisconnectAccountTool(validator, aurinko.getAccountService(), jsonMapper, descriptions.tool("disconnect_account")),
+                new SendMessageTool(validator, aurinko.getEmailService(), jsonMapper, descriptions.tool("send_message")));
         return tools.stream().filter(tool -> descriptions.tool(tool.specification().tool().name()).isEnabled()).toList();
     }
 }

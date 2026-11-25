@@ -12,7 +12,7 @@ public class ToolDescriptionsTest {
     @Test
     void toolDescriptionRequired() {
         var tool = new ToolDescription(true, "Tool help", Map.of());
-        var descriptions = new ToolDescriptions(Map.of("ping", tool), Map.of());
+        var descriptions = new ToolDescriptions(Map.of("ping", tool), Map.of(), "Server instructions");
         assertThat(descriptions.tool("ping")).isEqualTo(tool);
         assertThatThrownBy(() -> descriptions.tool("missing")).isInstanceOf(IllegalStateException.class);
     }

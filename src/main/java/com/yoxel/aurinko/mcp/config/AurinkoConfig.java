@@ -12,8 +12,8 @@ import java.util.Map;
 public class AurinkoConfig {
 
     private static final List<String> DEFAULT_ACCOUNT_SERVICE_TYPES = List.of("Google", "Office365", "iCloud", "IMAP", "CalDav");
-    private static final String DEFAULT_LOGIN_SCOPES = "Mail.Read Calendar.ReadWrite";
-    private static final String DEFAULT_IMAP_SCOPES = "Mail.Read";
+    private static final String DEFAULT_LOGIN_SCOPES = "Mail.Read Mail.Send Calendar.ReadWrite";
+    private static final String DEFAULT_IMAP_SCOPES = "Mail.Read Mail.Send";
     private static final String DEFAULT_CALDAV_SCOPES = "Calendar.ReadWrite";
 
     String url;

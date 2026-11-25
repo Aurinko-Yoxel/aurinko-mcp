@@ -1,8 +1,14 @@
 package com.yoxel.aurinko.mcp.aurinko;
 
 import com.yoxel.aurinko.apis.QueryParams;
+import com.google.api.client.googleapis.util.Utils;
+import com.google.api.client.http.json.JsonHttpContent;
+import com.yoxel.aurinko.bean.AurEmailSendResponse;
 import com.yoxel.aurinko.bean.AurEmail;
 import com.yoxel.aurinko.bean.sub.EmailAddress;
+import com.yoxel.aurinko.mcp.paging.PageCursor;
+import com.yoxel.aurinko.mcp.paging.PageResult;
+import com.yoxel.aurinko.mcp.paging.PageTraversal;
 import lombok.RequiredArgsConstructor;
 
 import java.io.IOException;
@@ -20,12 +26,16 @@ public class AurinkoEmailServiceImpl implements AurinkoEmailService {
     private final AurinkoClientFactory clientFactory;
 
     @Override
-    public List<AurinkoEmailSummary> searchMessages(String userSession, long accountId, String query, int limit)
+    public PageResult<AurinkoEmailSummary> searchMessages(String userSession, long accountId, String query, PageCursor start, int limit)
             throws AurinkoException {
         try (var service = clientFactory.create(userSession, accountId)) {
             QueryParams parameters = query == null || query.isBlank() ? QueryParams.EMPTY : QueryParams.of("q", query);
-            var records = service.emails.loadPage(parameters).getRecords();
-            return records == null ? List.of() : Arrays.stream(records).limit(limit).map(this::summary).toList();
+            return PageTraversal.load(start, limit, token -> {
+                var page = service.emails.loadPage(parameters.add("pageToken", token));
+                var records = page.getRecords();
+                return new PageTraversal.Page<>(records == null ? List.of()
+                        : Arrays.stream(records).map(this::summary).toList(), page.getNextPageToken());
+            });
         } catch (IOException | RuntimeException e) {
             throw new AurinkoException(e);
         }
@@ -44,6 +54,40 @@ public class AurinkoEmailServiceImpl implements AurinkoEmailService {
         } catch (IOException | RuntimeException e) {
             throw new AurinkoException(e);
         }
+    }
+
+    @Override
+    public String sendMessage(String userSession, long accountId, AurinkoEmailDraft draft) throws AurinkoException {
+        try (var service = clientFactory.create(userSession, accountId)) {
+            var message = new AurEmail();
+            message.setTo(draft.getTo().stream().map(this::recipient).toList());
+            message.setCc(draft.getCc().stream().map(this::recipient).toList());
+            message.setSubject(draft.getSubject());
+            message.setBody(draft.getBody());
+            var request = service.emails.httpPostPrepare(service.emails.entityPath(),
+                    QueryParams.of(QueryParams.qp("bodyType", "text"), QueryParams.qp("returnIds", true)),
+                    new JsonHttpContent(Utils.getDefaultJsonFactory(), message));
+            request.setNumberOfRetries(0);
+            request.setIOExceptionHandler(null);
+            var response = service.emails.httpExecute(request);
+            try {
+                var result = response.parseAs(AurEmailSendResponse.class);
+                if (result == null || result.getId() == null || result.getId().isBlank()) {
+                    throw new AurinkoException();
+                }
+                return result.getId();
+            } finally {
+                response.disconnect();
+            }
+        } catch (IOException | RuntimeException e) {
+            throw new AurinkoException(e);
+        }
+    }
+
+    private EmailAddress recipient(String email) {
+        var address = new EmailAddress();
+        address.setAddress(email);
+        return address;
     }
 
     private AurinkoEmailSummary summary(AurEmail message) {

@@ -9,6 +9,8 @@ import com.yoxel.aurinko.mcp.aurinko.AurinkoAccountService;
 import com.yoxel.aurinko.mcp.aurinko.AurinkoException;
 import com.yoxel.aurinko.mcp.auth.BearerAuthFilter;
 import com.yoxel.aurinko.mcp.auth.McpPrincipal;
+import com.yoxel.aurinko.mcp.paging.PageScope;
+import com.yoxel.aurinko.mcp.paging.PageCursor;
 import com.yoxel.aurinko.mcp.support.FakeAurinkoCalendarService;
 import io.modelcontextprotocol.common.McpTransportContext;
 import io.modelcontextprotocol.json.McpJsonDefaults;
@@ -53,7 +55,9 @@ public class ListEventsToolTest {
         assertThat(service.getTimeMax()).isEqualTo(timeMin.plusDays(1));
         assertThat(service.getLimit()).isEqualTo(5);
         String text = ((McpSchema.TextContent) result.content().get(0)).text();
-        var events = McpJsonDefaults.getMapper().readValue(text, new TypeRef<List<Map<String, Object>>>() {});
+        var response = McpJsonDefaults.getMapper().readValue(text, new TypeRef<Map<String, Object>>() {});
+        assertThat(response).doesNotContainKey("nextCursor");
+        var events = (List<Map<String, Object>>) response.get("items");
         assertThat(events).hasSize(1);
         assertThat(events.get(0)).containsEntry("id", "event-1");
         assertThat(text).doesNotContain(principal.getUserSession());
@@ -141,10 +145,51 @@ public class ListEventsToolTest {
         return new HashMap<>(Map.of("accountId", 42, "timeMin", timeMin.toString(), "timeMax", timeMin.plusDays(1).toString()));
     }
 
+    @Test
+    void continuationIsEncryptedAndLimitCanChange() throws Exception {
+        var position = new PageCursor("private-aurinko-token", 2);
+        service.setNext(position);
+        var arguments = arguments();
+        arguments.put("limit", 1);
+        var first = call(accounts, arguments);
+        assertThat(first.isError()).isFalse();
+        String text = ((McpSchema.TextContent) first.content().get(0)).text();
+        var response = McpJsonDefaults.getMapper().readValue(text, new TypeRef<Map<String, Object>>() {});
+        assertThat(response).containsKeys("items", "nextCursor");
+        assertThat(text).doesNotContain("private-aurinko-token");
+        String cursor = (String) response.get("nextCursor");
+        var scope = new PageScope(principal.getUserId(), 42, "list_events", Map.of("calendarId", "primary", "timeMin", timeMin.toInstant().toString(), "timeMax", timeMin.plusDays(1).toInstant().toString()));
+        assertThat(TestToolDescriptions.cursors().parse(cursor, scope)).isEqualTo(position);
+        service.setNext(null);
+        arguments.put("cursor", cursor);
+        arguments.put("limit", 50);
+        arguments.put("timeMin", timeMin.toInstant().toString());
+        arguments.put("timeMax", timeMin.plusDays(1).toInstant().toString());
+        var last = call(accounts, arguments);
+        assertThat(last.isError()).isFalse();
+        assertThat(service.getStart()).isEqualTo(position);
+        assertThat(service.getLimit()).isEqualTo(50);
+        var result = McpJsonDefaults.getMapper().readValue(((McpSchema.TextContent) last.content().get(0)).text(),
+                new TypeRef<Map<String, Object>>() {});
+        assertThat(result).containsKey("items").doesNotContainKey("nextCursor");
+    }
+
+    @Test
+    void foreignCursorRejectedBeforeLoadingData() {
+        String cursor = TestToolDescriptions.cursors().create(new PageScope("other-user", 42, "list_events", Map.of("calendarId", "primary", "timeMin", timeMin.toInstant().toString(), "timeMax", timeMin.plusDays(1).toInstant().toString())),
+                new PageCursor("private-token", 0));
+        var arguments = arguments();
+        arguments.put("cursor", cursor);
+        var result = call(accounts, arguments);
+        assertThat(result.isError()).isTrue();
+        assertThat(result.content()).containsExactly(new McpSchema.TextContent("Invalid or expired cursor"));
+        assertThat(service.getCalls()).isZero();
+    }
+
     private McpSchema.CallToolResult call(AurinkoAccountService accountService, Map<String, Object> arguments) {
         var context = McpTransportContext.create(Map.of(BearerAuthFilter.PRINCIPAL_ATTRIBUTE, principal));
         var exchange = new McpSyncServerExchange(new McpAsyncServerExchange("session", null, null, null, context));
-        var tool = new ListEventsTool(new AccountAccessValidator(accountService), service, McpJsonDefaults.getMapper(), TestToolDescriptions.tool("list_events"));
+        var tool = new ListEventsTool(new AccountAccessValidator(accountService), service, McpJsonDefaults.getMapper(), TestToolDescriptions.tool("list_events"), TestToolDescriptions.cursors());
         return tool.specification().callHandler().apply(exchange,
                 McpSchema.CallToolRequest.builder("list_events").arguments(arguments).build());
     }

@@ -49,7 +49,7 @@ public class AurinkoAuthorizeUrlBuilderTest {
         URI url = URI.create(builder.build(serviceType, "https://mcp.example.com/callback", "state"));
 
         assertThat(query(url)).containsEntry("serviceType", serviceType)
-                .containsEntry("scopes", "Mail.Read Calendar.ReadWrite")
+                .containsEntry("scopes", "Mail.Read Mail.Send Calendar.ReadWrite")
                 .containsEntry("prompt", "select_account");
     }
 

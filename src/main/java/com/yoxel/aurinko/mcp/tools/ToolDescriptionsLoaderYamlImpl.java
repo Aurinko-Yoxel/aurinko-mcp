@@ -29,6 +29,7 @@ public class ToolDescriptionsLoaderYamlImpl implements ToolDescriptionsLoader {
         } catch (IOException e) {
             throw new IllegalArgumentException("Unable to read default tools.yaml");
         }
+        String instructions = text(defaults.get("instructions"), "instructions");
         Map<String, ToolDescription> tools = new LinkedHashMap<>();
         mapping(defaults.get("tools")).forEach((name, value) -> {
             var fields = mapping(value);
@@ -48,9 +49,12 @@ public class ToolDescriptionsLoaderYamlImpl implements ToolDescriptionsLoader {
                 throw new IllegalArgumentException("TOOLS_CONFIG_FILE was not found or is not readable");
             }
             for (Object name : overrides.keySet()) {
-                if (!Set.of("tools", "serviceTypes").contains(name)) {
+                if (!Set.of("tools", "serviceTypes", "instructions").contains(name)) {
                     throw new IllegalArgumentException("Unknown top-level key in tools configuration: " + display(key(name)));
                 }
+            }
+            if (overrides.containsKey("instructions")) {
+                instructions = text(overrides.get("instructions"), "instructions");
             }
             if (overrides.containsKey("tools")) {
                 mapping(overrides.get("tools")).forEach((name, value) -> {
@@ -90,7 +94,7 @@ public class ToolDescriptionsLoaderYamlImpl implements ToolDescriptionsLoader {
                 });
             }
         }
-        return new ToolDescriptions(tools, serviceTypes);
+        return new ToolDescriptions(tools, serviceTypes, instructions);
     }
 
     private Map<?, ?> read(InputStream stream) {

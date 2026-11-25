@@ -8,6 +8,7 @@ import java.net.InetSocketAddress;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicInteger;
 
 public class FakeCalendarServer implements AutoCloseable {
@@ -17,6 +18,7 @@ public class FakeCalendarServer implements AutoCloseable {
     private volatile String body = "{\"records\":[]}";
     private volatile String nextBody;
     private volatile URI requestUri;
+    private final List<URI> requestUris = new CopyOnWriteArrayList<>();
     private volatile String requestBody;
     private volatile String requestMethod;
     private final AtomicInteger requests = new AtomicInteger();
@@ -26,6 +28,7 @@ public class FakeCalendarServer implements AutoCloseable {
         server.createContext("/v1/calendars/", exchange -> {
             requests.incrementAndGet();
             requestUri = exchange.getRequestURI();
+            requestUris.add(requestUri);
             requestMethod = exchange.getRequestMethod();
             requestBody = new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8);
             String response = nextBody != null && requestUri.getRawQuery() != null
@@ -54,6 +57,10 @@ public class FakeCalendarServer implements AutoCloseable {
     public void respondPages(String first, String next) {
         respond(200, first);
         this.nextBody = next;
+    }
+
+    public List<URI> getRequestUris() {
+        return List.copyOf(requestUris);
     }
 
     public URI getRequestUri() {

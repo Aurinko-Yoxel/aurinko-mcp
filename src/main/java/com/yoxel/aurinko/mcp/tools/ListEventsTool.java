@@ -5,6 +5,10 @@ import com.yoxel.aurinko.mcp.aurinko.AccountAccessValidator;
 import com.yoxel.aurinko.mcp.aurinko.AurinkoCalendarService;
 import com.yoxel.aurinko.mcp.aurinko.AurinkoException;
 import com.yoxel.aurinko.mcp.auth.McpPrincipalHelper;
+import com.yoxel.aurinko.mcp.paging.PageCursor;
+import com.yoxel.aurinko.mcp.paging.PageScope;
+import com.yoxel.aurinko.mcp.paging.PageCursorManager;
+import com.yoxel.aurinko.mcp.paging.InvalidPageCursorException;
 import io.modelcontextprotocol.json.McpJsonMapper;
 import io.modelcontextprotocol.server.McpServerFeatures;
 import io.modelcontextprotocol.spec.McpSchema;
@@ -29,6 +33,7 @@ public class ListEventsTool implements McpTool {
     private final AurinkoCalendarService calendarService;
     private final McpJsonMapper jsonMapper;
     private final ToolDescription toolDescription;
+    private final PageCursorManager cursorManager;
 
     @Override
     public McpServerFeatures.SyncToolSpecification specification() {
@@ -37,6 +42,7 @@ public class ListEventsTool implements McpTool {
                                 "type", "object", "additionalProperties", false,
                                 "required", List.of("accountId", "timeMin", "timeMax"),
                                 "properties", Map.of(
+                                        "cursor", Map.of("type", "string", "description", toolDescription.parameter("cursor")),
                                         "accountId", Map.of("type", "integer", "description", toolDescription.parameter("accountId")),
                                         "calendarId", Map.of("type", "string", "description", toolDescription.parameter("calendarId")),
                                         "timeMin", Map.of("type", "string", "description", toolDescription.parameter("timeMin")),
@@ -62,8 +68,16 @@ public class ListEventsTool implements McpTool {
                             throw new InvalidArgumentException("Time range must not exceed 62 days");
                         }
                         accessValidator.validate(principal.getUserId(), accountId);
-                        return ToolResultHelper.json(jsonMapper, calendarService.listEvents(
-                                principal.getUserSession(), accountId, calendarId, timeMin, timeMax, limit));
+                        var scope = new PageScope(principal.getUserId(), accountId, "list_events",
+                                Map.of("calendarId", calendarId == null ? "primary" : calendarId,
+                                        "timeMin", timeMin.toInstant().toString(), "timeMax", timeMax.toInstant().toString()));
+                        String cursor = arguments.optionalString("cursor");
+                        PageCursor start = cursor == null ? null : cursorManager.parse(cursor, scope);
+                        var page = calendarService.listEvents(principal.getUserSession(), accountId, calendarId,
+                                timeMin, timeMax, start, limit);
+                        return ToolResultHelper.page(jsonMapper, page, cursorManager, scope);
+                    } catch (InvalidPageCursorException e) {
+                        return ToolResultHelper.error("Invalid or expired cursor");
                     } catch (InvalidArgumentException e) {
                         return ToolResultHelper.error(e.getMessage());
                     } catch (AccountAccessDeniedException e) {

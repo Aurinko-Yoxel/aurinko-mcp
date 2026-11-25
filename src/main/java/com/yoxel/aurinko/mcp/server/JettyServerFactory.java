@@ -26,7 +26,7 @@ public class JettyServerFactory {
         var jsonMapper = McpJsonDefaults.getMapper();
         var transport = McpServerFactory.createTransport(jsonMapper);
         var tools = McpToolsFactory.create(aurinko, oauth, config, aurinkoConfig, jsonMapper, descriptions);
-        var mcpServer = McpServerFactory.create(transport, tools);
+        var mcpServer = McpServerFactory.create(transport, tools, descriptions.getInstructions());
 
         Server server = new Server();
         ServerConnector connector = new ServerConnector(server);

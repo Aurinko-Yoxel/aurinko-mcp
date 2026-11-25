@@ -32,9 +32,12 @@ import com.yoxel.aurinko.mcp.oauth.TokenManagerJweImpl;
 import com.yoxel.aurinko.mcp.oauth.UsedCodesMemoryImpl;
 import com.yoxel.aurinko.mcp.oauth.UsedCodes;
 import com.yoxel.aurinko.mcp.oauth.UserLogin;
+import com.yoxel.aurinko.mcp.paging.PageCursorManager;
+import com.yoxel.aurinko.mcp.paging.PageCursorManagerJweImpl;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.Value;
+
 
 import java.time.Clock;
 import java.util.List;
@@ -44,6 +47,7 @@ import java.util.List;
 public class OAuthComponents {
 
     JweHelper jweHelper;
+    PageCursorManager pageCursorManager;
     TokenManager tokenManager;
     AccessTokenVerifier accessTokenVerifier;
     McpSessionOwners sessionOwners;
@@ -76,7 +80,7 @@ public class OAuthComponents {
         var renderer = new LoginPageRendererImpl();
         var userLogin = new AurinkoUserLogin(loginStateManager, urlBuilder, renderer, config, aurinkoConfig);
         var sessionOwners = new McpSessionOwnersMemoryImpl(clock);
-        return new OAuthComponents(jweHelper, tokenManager, tokenManager, sessionOwners, registrationManager, redirectUriValidator,
+        return new OAuthComponents(jweHelper, new PageCursorManagerJweImpl(jweHelper), tokenManager, tokenManager, sessionOwners, registrationManager, redirectUriValidator,
                 List.of(codeGrantHandler, refreshGrantHandler), completer, loginStateManager, connectStateManager, connectUsedCodes,
                 urlBuilder, userLogin);
     }

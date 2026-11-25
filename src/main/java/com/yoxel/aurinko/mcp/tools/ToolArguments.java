@@ -4,6 +4,7 @@ import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.time.format.DateTimeParseException;
 import java.util.Map;
+import java.util.List;
 
 public class ToolArguments {
 
@@ -39,6 +40,33 @@ public class ToolArguments {
             return value;
         }
         throw new InvalidArgumentException(name + " must be a string");
+    }
+
+    public String requireText(String name) {
+        if (values.get(name) instanceof String value) {
+            return value;
+        }
+        throw new InvalidArgumentException(name + " must be a string");
+    }
+
+    public List<?> optionalList(String name) {
+        if (!values.containsKey(name)) {
+            return List.of();
+        }
+        if (values.get(name) instanceof List<?> value) {
+            return value;
+        }
+        throw new InvalidArgumentException(name + " must be an array");
+    }
+
+    public Boolean optionalBoolean(String name) {
+        if (!values.containsKey(name)) {
+            return null;
+        }
+        if (values.get(name) instanceof Boolean value) {
+            return value;
+        }
+        throw new InvalidArgumentException(name + " must be a boolean");
     }
 
     public int optionalInt(String name, int defaultValue, int min, int max) {
