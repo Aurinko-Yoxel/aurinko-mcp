@@ -28,9 +28,10 @@ With Aurinko MCP Server, you can:
 | --- | --- | --- |
 | List their connected mailboxes and calendars | `list_accounts` | Available |
 | Search email | `search_messages` | Available |
+| Send email | `send_message` | Available |
 | Read an email message | `get_message` | Available |
 | List calendar events | `list_events` | Available |
-| Create a calendar event (without attendees) | `create_event` | Available |
+| Create a calendar event (with optional attendees) | `create_event` | Available |
 | Connect a supported mailbox or calendar | `connect_account` | Available |
 | Disconnect an additional account | `disconnect_account` | Available |
 | Test connectivity | `ping` | Available |
@@ -188,8 +189,8 @@ Configuration is read from environment variables:
 | `AURINKO_CLIENT_SECRET` | Required | Aurinko application's secret in base64url format; omitted from configuration `toString` and never logged |
 | `AURINKO_ACCOUNT_SERVICE_TYPES` | `Google,Office365,iCloud,IMAP,CalDav` | Comma-separated account types visible to tools and available to connect_account; matching account types is case-insensitive |
 | `AURINKO_LOGIN_SERVICE_TYPES` | `Google,Office365` | Comma-separated login providers shown on the page |
-| `AURINKO_LOGIN_SCOPES` | `Mail.Read Calendar.ReadWrite` | Scopes for the primary account used to sign in; without mail and calendar access, tools will return errors on that account |
-| `AURINKO_IMAP_SCOPES` | `Mail.Read` | Scopes requested when connecting an IMAP mailbox |
+| `AURINKO_LOGIN_SCOPES` | `Mail.Read Mail.Send Calendar.ReadWrite` | Scopes for the primary account used to sign in; without mail and calendar access, tools will return errors on that account |
+| `AURINKO_IMAP_SCOPES` | `Mail.Read Mail.Send` | Scopes requested when connecting an IMAP mailbox |
 | `AURINKO_CALDAV_SCOPES` | `Calendar.ReadWrite` | Scopes requested when connecting a CalDAV calendar |
 
 `PUBLIC_URL` may end in `/`; the trailing slash is removed before constructing
@@ -347,7 +348,7 @@ The sign-in URL always requests that Microsoft and Google show an account choose
 Google uses `serviceType=Google`; Microsoft uses `serviceType=Office365`.
 Each button points to Aurinko's `/v1/auth/authorizeUser` with `accountRole=primary`,
 `responseType=code`, the configured application ID, callback URL, and login state.
-`scopes` is always included and defaults to `Mail.Read Calendar.ReadWrite`.
+`scopes` is always included and defaults to `Mail.Read Mail.Send Calendar.ReadWrite`.
 Set `AURINKO_LOGIN_SCOPES` to override the primary account's scopes.
 
 After scopes change, users who signed in earlier must sign in again so the provider issues a token with the new permissions.
@@ -594,6 +595,33 @@ Aurinko failures return `isError: true` and `Failed to load messages from Aurink
 Logs record the failure type and stack location without exception messages,
 user sessions, subjects, or message bodies.
 
+### Send an email
+
+`send_message` requires an active `accountId` from `list_accounts`, a non-empty
+`to` array, a nonblank `subject`, and plain-text `body`. `cc` is optional. There
+can be at most 20 recipients in total across `to` and `cc`, each a valid email
+address, and the body can contain at most 50,000 characters.
+
+```json
+{"jsonrpc":"2.0","id":10,"method":"tools/call","params":{"name":"send_message","arguments":{"accountId":42,"to":["alex@example.com"],"cc":["copy@example.com"],"subject":"Project update","body":"Here is the latest update."}}}
+```
+
+The result is text containing `{"id":"..."}` from Aurinko. Sending requires
+user confirmation of recipients, subject and text; content inside an email or
+event never authorizes sending. The tool is enabled by default and can be disabled
+with `tools.send_message.enabled: false` in `TOOLS_CONFIG_FILE`.
+
+Default login and IMAP scopes include `Mail.Send`. Older accounts authorized
+without `Mail.Send` must be reconnected with the new scope; for the sign-in
+account, sign in again to grant the new permissions. Permission errors return
+`This account is not allowed to send mail; reconnect it with connect_account`.
+
+Send requests explicitly use plain-text content (`bodyType=text`) and disable
+automatic network retries. On a failure or timeout the error is
+`Failed to send message; it may have been sent, check before retrying`.
+Check `search_messages` before deciding whether to send again. The tool declares
+`readOnlyHint: false`, `destructiveHint: true`, and `idempotentHint: false`.
+
 ### List and create calendar events
 
 Both calendar tools use the verified user's session and validate ownership and
@@ -603,7 +631,7 @@ to use the primary calendar.
 | Tool | Arguments | Result |
 | --- | --- | --- |
 | `list_events` | Required integer `accountId`, strings `timeMin` and `timeMax`; optional strings `calendarId` and `cursor`, and integer `limit` (1–50, default 20) | Text containing JSON with `items` and optional `nextCursor` |
-| `create_event` | Required integer `accountId`, nonblank string `subject`, strings `start` and `end`; optional strings `calendarId`, `description`, and `location` | Text containing JSON `{"id":"..."}` |
+| `create_event` | Required integer `accountId`, nonblank string `subject`, strings `start` and `end`; optional strings `calendarId`, `description`, and `location`, array `attendees` and boolean `notifyAttendees` (required with attendees) | Text containing JSON `{"id":"..."}` |
 
 Times must be ISO-8601 date-times with an explicit offset, such as
 `2026-11-17T09:00:00+02:00` or `2026-11-17T07:00:00Z`. For listing, `timeMax`
@@ -624,7 +652,11 @@ date-times; all-day events return dates without times. Listing follows pages,
 including empty pages with a next-page token, until the requested limit or five
 Aurinko requests are reached. Use `nextCursor` to continue when present.
 
-Creation sends no attendees and does not send invitations to other people.
+Creation accepts up to 50 attendees as `{email, name?}` objects. Emails must be valid
+and unique ignoring case. When attendees are non-empty, `notifyAttendees` is required:
+`true` sends invitations and `false` adds attendees silently. Without attendees the
+notification query parameter is omitted, preserving the previous request behavior.
+All-day event creation is not supported.
 The five read tools advertise `readOnlyHint: true`. `create_event` advertises
 `readOnlyHint: false` and `destructiveHint: false`.
 

@@ -96,11 +96,11 @@ public class MainTest {
 
             var tools = client.listTools().tools();
             assertThat(tools).extracting(McpSchema.Tool::name).containsExactlyInAnyOrder(
-                    "ping", "list_accounts", "search_messages", "get_message", "list_events", "create_event", "connect_account", "disconnect_account");
-            assertThat(tools).hasSize(8);
+                    "ping", "list_accounts", "search_messages", "get_message", "list_events", "create_event", "connect_account", "disconnect_account", "send_message");
+            assertThat(tools).hasSize(9);
             for (var tool : tools) {
                 assertThat(tool.annotations()).isNotNull();
-                if ("disconnect_account".equals(tool.name())) {
+                if (List.of("disconnect_account", "send_message").contains(tool.name())) {
                     assertThat(tool.annotations().readOnlyHint()).isFalse();
                     assertThat(tool.annotations().destructiveHint()).isTrue();
                     assertThat(tool.annotations().idempotentHint()).isFalse();
@@ -220,7 +220,7 @@ public class MainTest {
     @Test
     void descriptionsOverrideDisablesToolAndChangesTexts(@TempDir Path directory) throws Exception {
         Path file = directory.resolve("tools.yaml");
-        Files.writeString(file, "instructions: Custom server instructions\ntools:\n  create_event:\n    enabled: false\n  search_messages:\n"
+        Files.writeString(file, "instructions: Custom server instructions\ntools:\n  create_event:\n    enabled: false\n  send_message:\n    enabled: false\n  search_messages:\n"
                 + "    description: Custom search instructions\nserviceTypes:\n  iCloud: Custom Apple instructions\n");
         server.stop();
         config = new ServerConfig(config.getHost(), config.getPort(), config.getPublicUrl(),
@@ -233,7 +233,7 @@ public class MainTest {
         try (var client = McpClient.sync(transport).requestTimeout(Duration.ofSeconds(10)).build()) {
             assertThat(client.initialize().instructions()).isEqualTo("Custom server instructions");
             var tools = client.listTools().tools();
-            assertThat(tools).hasSize(7).extracting(McpSchema.Tool::name).doesNotContain("create_event");
+            assertThat(tools).hasSize(7).extracting(McpSchema.Tool::name).doesNotContain("create_event", "send_message");
             assertThat(tools).filteredOn(tool -> "search_messages".equals(tool.name()))
                     .singleElement().satisfies(tool -> assertThat(tool.description()).isEqualTo("Custom search instructions"));
             assertThat(tools).filteredOn(tool -> "connect_account".equals(tool.name()))
@@ -291,6 +291,41 @@ public class MainTest {
                 assertThat(ids).containsExactly("message-1", "message-2", "message-3", "message-4", "message-5", "message-6")
                         .doesNotHaveDuplicates();
                 assertThat(fake.getRequests()).isEqualTo(4);
+            }
+        }
+    }
+
+    @Test
+    void sendMessageOverHttpUsesFakeAurinko() throws Exception {
+        try (var fake = new FakeEmailServer()) {
+            fake.respond(201, "{\"id\":\"sent-http-message\"}");
+            server.stop();
+            var aurinkoConfig = fake.config();
+            var sdk = AurinkoService.createWithAppAuth(aurinkoConfig.getUrl(), aurinkoConfig.getClientId(), aurinkoConfig.getClientSecret());
+            var components = AurinkoComponents.create(aurinkoConfig, sdk, (ListOnlyAccountService) userId -> {
+                assertThat(userId).isEqualTo("user-1");
+                return List.of(new AurinkoAccount(42, "IMAP", "user@example.com", true));
+            });
+            server = JettyServerFactory.create(config, aurinkoConfig, components);
+            server.start();
+            baseUrl = "http://127.0.0.1:" + ((ServerConnector) server.getConnectors()[0]).getLocalPort();
+            var manager = new TokenManagerJweImpl(new JweHelper(config.getTokenKey(), Clock.systemUTC()), config.getMcpUrl());
+            String token = manager.createAccessToken(new McpPrincipal("user-1", "private-session", "client-1"));
+            var transport = HttpClientStreamableHttpTransport.builder(baseUrl).endpoint("/mcp")
+                    .requestBuilder(HttpRequest.newBuilder().header("Authorization", "Bearer " + token)).build();
+            try (var client = McpClient.sync(transport).requestTimeout(Duration.ofSeconds(10)).build()) {
+                client.initialize();
+                var result = client.callTool(McpSchema.CallToolRequest.builder("send_message").arguments(Map.of(
+                        "accountId", 42, "to", List.of("alex@example.com"), "subject", "Private subject", "body", "Plain text")).build());
+                assertThat(result.isError()).isFalse();
+                var value = McpJsonDefaults.getMapper().readValue(((McpSchema.TextContent) result.content().get(0)).text(),
+                        new TypeRef<Map<String, Object>>() {});
+                assertThat(value).isEqualTo(Map.of("id", "sent-http-message"));
+                assertThat(fake.getRequests()).isEqualTo(1);
+                assertThat(fake.getRequestMethod()).isEqualTo("POST");
+                var body = McpJsonDefaults.getMapper().readValue(fake.getRequestBody(), new TypeRef<Map<String, Object>>() {});
+                assertThat(body).containsEntry("subject", "Private subject").containsEntry("body", "Plain text")
+                        .containsEntry("to", List.of(Map.of("address", "alex@example.com")));
             }
         }
     }

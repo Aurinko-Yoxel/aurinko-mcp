@@ -121,12 +121,32 @@ public class AurinkoCalendarServiceImplTest {
 
             assertThat(id).isEqualTo("created-event");
             assertThat(fake.getRequestMethod()).isEqualTo("POST");
+            assertThat(fake.getRequestUri().getRawQuery()).isNull();
             assertThat(fake.getRequestUri().getPath()).isEqualTo("/v1/calendars/primary/events");
             var body = McpJsonDefaults.getMapper().readValue(fake.getRequestBody(), new TypeRef<Map<String, Object>>() {});
             assertThat(body).containsEntry("subject", draft.getSubject()).containsEntry("description", draft.getDescription())
                     .containsEntry("location", draft.getLocation()).doesNotContainKeys("attendees", "meetingInfo");
             assertThat(OffsetDateTime.parse((String) ((Map<?, ?>) body.get("start")).get("dateTime")).isEqual(timeMin)).isTrue();
             assertThat(OffsetDateTime.parse((String) ((Map<?, ?>) body.get("end")).get("dateTime")).isEqual(timeMax)).isTrue();
+        }
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {true, false})
+    void createSendsMeetingAttendeesAndNotificationChoice(boolean notify) throws Exception {
+        try (var fake = new FakeCalendarServer()) {
+            fake.respond(201, "{\"id\":\"created-event\"}");
+            var service = new AurinkoCalendarServiceImpl(new AurinkoClientFactoryImpl(fake.config()));
+            var draft = new AurinkoEventDraft("Subject", null, null, timeMin, timeMax,
+                    List.of(new AurinkoEventAttendee("alex@example.com", "Alex"), new AurinkoEventAttendee("bob@example.com", null)), notify);
+            assertThat(service.createEvent("session", 42, null, draft)).isEqualTo("created-event");
+            assertThat(query(fake.getRequestUri())).containsEntry("notifyAttendees", String.valueOf(notify));
+            var body = McpJsonDefaults.getMapper().readValue(fake.getRequestBody(), new TypeRef<Map<String, Object>>() {});
+            var meeting = (Map<?, ?>) body.get("meetingInfo");
+            var attendees = (List<Map<String, Object>>) meeting.get("attendees");
+            assertThat(attendees).hasSize(2);
+            assertThat(attendees.get(0)).containsEntry("emailAddress", Map.of("address", "alex@example.com", "name", "Alex"));
+            assertThat(attendees.get(1)).containsEntry("emailAddress", Map.of("address", "bob@example.com"));
         }
     }
 

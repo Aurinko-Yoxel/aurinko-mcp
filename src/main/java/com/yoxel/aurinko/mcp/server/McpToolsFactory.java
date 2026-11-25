@@ -13,6 +13,7 @@ import com.yoxel.aurinko.mcp.tools.ListEventsTool;
 import com.yoxel.aurinko.mcp.tools.McpTool;
 import com.yoxel.aurinko.mcp.tools.PingTool;
 import com.yoxel.aurinko.mcp.tools.SearchMessagesTool;
+import com.yoxel.aurinko.mcp.tools.SendMessageTool;
 import io.modelcontextprotocol.json.McpJsonMapper;
 
 import java.util.List;
@@ -34,7 +35,8 @@ public class McpToolsFactory {
                 new CreateEventTool(validator, aurinko.getCalendarService(), jsonMapper, descriptions.tool("create_event")),
                 new ConnectAccountTool(oauth.getConnectStateManager(), config, jsonMapper, aurinkoConfig.getAccountServiceTypes(),
                         catalog, descriptions.tool("connect_account")),
-                new DisconnectAccountTool(validator, aurinko.getAccountService(), jsonMapper, descriptions.tool("disconnect_account")));
+                new DisconnectAccountTool(validator, aurinko.getAccountService(), jsonMapper, descriptions.tool("disconnect_account")),
+                new SendMessageTool(validator, aurinko.getEmailService(), jsonMapper, descriptions.tool("send_message")));
         return tools.stream().filter(tool -> descriptions.tool(tool.specification().tool().name()).isEnabled()).toList();
     }
 }

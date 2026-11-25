@@ -10,6 +10,8 @@ import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 public class FakeEmailServer implements AutoCloseable {
@@ -19,6 +21,9 @@ public class FakeEmailServer implements AutoCloseable {
     private volatile String body = "{\"records\":[]}";
     private volatile String nextBody;
     private volatile URI requestUri;
+    private volatile String requestBody;
+    private volatile String requestMethod;
+    private volatile CountDownLatch responseRelease;
     private final List<URI> requestUris = new CopyOnWriteArrayList<>();
     private volatile Headers requestHeaders;
     private final AtomicInteger requests = new AtomicInteger();
@@ -31,7 +36,15 @@ public class FakeEmailServer implements AutoCloseable {
             requestUris.add(requestUri);
             requestHeaders = new Headers();
             requestHeaders.putAll(exchange.getRequestHeaders());
-            exchange.getRequestBody().readAllBytes();
+            requestMethod = exchange.getRequestMethod();
+            requestBody = new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8);
+            if (responseRelease != null) {
+                try {
+                    responseRelease.await(5, TimeUnit.SECONDS);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                }
+            }
             String response = nextBody != null && requestUri.getRawQuery() != null
                     && requestUri.getRawQuery().contains("pageToken=") ? nextBody : body;
             byte[] bytes = response.getBytes(StandardCharsets.UTF_8);
@@ -57,6 +70,18 @@ public class FakeEmailServer implements AutoCloseable {
     public void respondPages(String first, String next) {
         respond(200, first);
         this.nextBody = next;
+    }
+
+    public String getRequestBody() {
+        return requestBody;
+    }
+
+    public String getRequestMethod() {
+        return requestMethod;
+    }
+
+    public void blockResponsesUntil(CountDownLatch release) {
+        this.responseRelease = release;
     }
 
     public List<URI> getRequestUris() {

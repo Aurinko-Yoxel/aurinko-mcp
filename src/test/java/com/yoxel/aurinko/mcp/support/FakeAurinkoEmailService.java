@@ -1,6 +1,7 @@
 package com.yoxel.aurinko.mcp.support;
 
 import com.yoxel.aurinko.mcp.aurinko.AurinkoEmail;
+import com.yoxel.aurinko.mcp.aurinko.AurinkoEmailDraft;
 import com.yoxel.aurinko.mcp.aurinko.AurinkoEmailService;
 import com.yoxel.aurinko.mcp.aurinko.AurinkoEmailSummary;
 import com.yoxel.aurinko.mcp.aurinko.AurinkoException;
@@ -15,6 +16,7 @@ import java.util.List;
 public class FakeAurinkoEmailService implements AurinkoEmailService {
 
     private int calls;
+    private AurinkoEmailDraft draft;
     private PageCursor start;
     @Setter
     private PageCursor next;
@@ -42,6 +44,18 @@ public class FakeAurinkoEmailService implements AurinkoEmailService {
         }
         return new PageResult<>(List.of(new AurinkoEmailSummary("message-1", "thread-1", "private-subject", "alice@example.com",
                 List.of("bob@example.com"), "2026-11-17T10:00:00Z", true)), next);
+    }
+
+    @Override
+    public String sendMessage(String userSession, long accountId, AurinkoEmailDraft draft) {
+        calls++;
+        this.userSession = userSession;
+        this.accountId = accountId;
+        this.draft = draft;
+        if (failure != null) {
+            throw failure;
+        }
+        return "sent-message";
     }
 
     @Override

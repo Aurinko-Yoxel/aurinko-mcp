@@ -24,6 +24,7 @@ import java.time.OffsetDateTime;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.IntStream;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -123,6 +124,58 @@ public class CreateEventToolTest {
 
         assertError(call(accounts, arguments), "subject must not be blank");
         assertThat(service.getCalls()).isZero();
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {true, false})
+    void attendeesAndNotificationChoicePassedToService(boolean notify) {
+        var args = arguments();
+        args.put("attendees", List.of(Map.of("email", "alex@example.com", "name", "Alex")));
+        args.put("notifyAttendees", notify);
+        assertThat(call(accounts, args).isError()).isFalse();
+        assertThat(service.getDraft().getNotifyAttendees()).isEqualTo(notify);
+        assertThat(service.getDraft().getAttendees()).singleElement().satisfies(person -> {
+            assertThat(person.getEmail()).isEqualTo("alex@example.com");
+            assertThat(person.getName()).isEqualTo("Alex");
+        });
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"missingNotify", "invalidEmail", "duplicate", "tooMany"})
+    void invalidAttendeesRejectedBeforeCreation(String kind) {
+        var args = arguments();
+        args.put("notifyAttendees", true);
+        args.put("attendees", List.of(Map.of("email", "alex@example.com")));
+        String expected;
+        switch (kind) {
+            case "missingNotify" -> {
+                args.remove("notifyAttendees");
+                expected = "notifyAttendees is required when attendees are given";
+            }
+            case "invalidEmail" -> {
+                args.put("attendees", List.of(Map.of("email", "bad-email")));
+                expected = "Invalid attendee email";
+            }
+            case "duplicate" -> {
+                args.put("attendees", List.of(Map.of("email", "alex@example.com"), Map.of("email", "ALEX@EXAMPLE.COM")));
+                expected = "Duplicate attendee email";
+            }
+            default -> {
+                args.put("attendees", IntStream.range(0, 51).mapToObj(i -> Map.of("email", "user" + i + "@example.com")).toList());
+                expected = "Too many attendees";
+            }
+        }
+        assertError(call(accounts, args), expected);
+        assertThat(service.getCalls()).isZero();
+    }
+
+    @Test
+    void notificationChoiceOmittedWithoutAttendees() {
+        var args = arguments();
+        args.put("notifyAttendees", true);
+        assertThat(call(accounts, args).isError()).isFalse();
+        assertThat(service.getDraft().getNotifyAttendees()).isNull();
+        assertThat(service.getDraft().getAttendees()).isEmpty();
     }
 
     private Map<String, Object> arguments() {

@@ -4,6 +4,8 @@ import com.google.api.client.util.DateTime;
 import com.yoxel.aurinko.apis.QueryParams;
 import com.yoxel.aurinko.bean.AurEvent;
 import com.yoxel.aurinko.bean.sub.EmailAddress;
+import com.yoxel.aurinko.bean.sub.Attendee;
+import com.yoxel.aurinko.bean.sub.MeetingInfo;
 import com.yoxel.aurinko.bean.sub.EventDateTime;
 import com.yoxel.aurinko.mcp.paging.PageCursor;
 import com.yoxel.aurinko.mcp.paging.PageResult;
@@ -51,7 +53,22 @@ public class AurinkoCalendarServiceImpl implements AurinkoCalendarService {
             event.setLocation(draft.getLocation());
             event.setStart(dateTime(draft.getStart()));
             event.setEnd(dateTime(draft.getEnd()));
-            String id = service.calendars.calendarEvents(calendarId == null ? "primary" : calendarId).create(event).getId();
+            var query = QueryParams.EMPTY;
+            if (!draft.getAttendees().isEmpty()) {
+                var meeting = new MeetingInfo();
+                meeting.setAttendees(draft.getAttendees().stream().map(value -> {
+                    var address = new EmailAddress();
+                    address.setAddress(value.getEmail());
+                    address.setName(value.getName());
+                    var attendee = new Attendee();
+                    attendee.setEmailAddress(address);
+                    attendee.setType("required");
+                    return attendee;
+                }).toList());
+                event.setMeetingInfo(meeting);
+                query = query.add("notifyAttendees", draft.getNotifyAttendees());
+            }
+            String id = service.calendars.calendarEvents(calendarId == null ? "primary" : calendarId).create(event, query).getId();
             if (id == null || id.isBlank()) {
                 throw new AurinkoException();
             }
