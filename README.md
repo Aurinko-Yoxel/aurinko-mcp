@@ -1,5 +1,7 @@
 # Aurinko MCP Server
 
+> **Early preview:** This project is at a very early stage of development. Features, configuration, and APIs may change without notice. Expect bugs and incomplete functionality; it is not yet recommended for production use. Feedback and contributions are welcome.
+
 **Bring existing mailboxes and calendars to AI assistants — without replacing your mail infrastructure.**
 
 An open-source, self-hostable **Model Context Protocol (MCP) gateway** powered by the [Aurinko Unified Mailbox API](https://www.aurinko.io/). Connect existing IMAP mailboxes and CalDAV calendars to MCP-compatible assistants using a single HTTP endpoint and user-specific authorization.
